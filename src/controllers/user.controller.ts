@@ -209,6 +209,7 @@ userRouter.post(
     const session = await createSession(user.id);
     return {
       token: session.id,
+      rol: user.rol
     };
   },
   {
@@ -217,7 +218,10 @@ userRouter.post(
       password: t.String(),
     }),
     response: {
-      200: t.Object({ token: t.String() }),
+      200: t.Object({
+        token: t.String(),
+        rol: t.String({ enum: ['Admin', 'User', 'Contacto'] }),
+      }),
       400: messageSchema,
       401: messageSchema,
     },
