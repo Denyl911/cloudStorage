@@ -263,9 +263,6 @@ userRouter.post(
       200: messageSchema,
       401: messageSchema,
     },
-    cookie: t.Cookie({
-      auth: t.String(),
-    }),
   }
 );
 
