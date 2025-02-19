@@ -48,6 +48,34 @@ contactRouter.get(
 );
 
 contactRouter.get(
+  '/profile',
+  async ({ headers: { auth }, error }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    const data = await db.select().from(User).where(eq(User.id, user.id));
+    if (data.length < 1) {
+      return error(404, {
+        message: 'Not found',
+      });
+    }
+    return data[0];
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    response: {
+      200: UserSelSchema,
+      404: messageSchema,
+      401: messageSchema,
+      403: messageSchema,
+    },
+  }
+);
+
+contactRouter.get(
   '/:id',
   async ({ headers: { auth }, params: { id }, error }) => {
     const user = await validateSessionToken(auth);
