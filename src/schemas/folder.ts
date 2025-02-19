@@ -13,6 +13,7 @@ import {
   createSelectSchema,
   createUpdateSchema,
 } from 'drizzle-typebox';
+import { Project } from './project';
 
 export const Folder = pgTable('folders', {
   id: serial().primaryKey(),
@@ -20,6 +21,7 @@ export const Folder = pgTable('folders', {
   userId: integer()
     .notNull()
     .references(() => User.id),
+  projectId: integer().references(() => Project.id),
   parentFolderId: integer().references((): AnyPgColumn => Folder.id),
   ...timestamps,
 });

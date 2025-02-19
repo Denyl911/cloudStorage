@@ -7,6 +7,9 @@ import { Logestic } from 'logestic';
 import folderRouter from './controllers/folder.controller';
 import fileRouter from './controllers/file.controller';
 import assetRouter from './controllers/assets.controller';
+import contactRouter from './controllers/contact.controller';
+import projectRouter from './controllers/projects.controller';
+import clientRouter from './controllers/client.controller';
 
 const app = new Elysia()
   .use(Logestic.preset('fancy'))
@@ -27,8 +30,11 @@ const app = new Elysia()
   .use(staticPlugin())
   .get('/', () => 'Hello Elysia')
   .use(userRouter)
+  .use(contactRouter)
   .use(folderRouter)
   .use(fileRouter)
+  .use(projectRouter)
+  .use(clientRouter)
   .use(assetRouter)
   .listen(3000);
 

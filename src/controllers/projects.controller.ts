@@ -1,48 +1,52 @@
 import { Elysia, t } from 'elysia';
 import { and, eq } from 'drizzle-orm';
+import path from 'path';
+import { mkdir } from 'node:fs/promises';
 import db from '../config/db.config';
-import { rename } from 'node:fs/promises';
 import {
-  File,
-  FileInSchema,
-  FileSelSchema,
-  FileTypeIn,
-  FileUpSchema,
-} from '../schemas/file';
+  Project,
+  ProjectInSchema,
+  ProjectSelSchema,
+  ProjectTypeIn,
+  ProjectUpSchema,
+} from '../schemas/project';
 import { messageSchema } from '../utils/utils';
-import { SharedFile, SharedFileInSchema } from '../schemas/sharedFiles';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
-import { Folder } from '../schemas/folder';
+import {
+  ContactProject,
+  ContactProjectInSchema,
+} from '../schemas/clients_contacts';
+import { Folder, FolderSelSchema } from '../schemas/folder';
 
-const fileRouter = new Elysia({
-  prefix: '/files',
+const projectRouter = new Elysia({
+  prefix: '/projects',
   detail: {
-    tags: ['Files'],
+    tags: ['Projects'],
   },
 });
 
-fileRouter.get(
+projectRouter.get(
   '/',
   async ({ headers: { auth }, error }) => {
     const isadmin = await itsAdmin(auth);
     if (!isadmin) {
       return error(401, { message: 'No autorizado' });
     }
-    return await db.select().from(File);
+    return await db.select().from(Project);
   },
   {
     headers: t.Object({
       auth: t.String(),
     }),
     response: {
-      200: t.Array(FileSelSchema),
+      200: t.Array(ProjectSelSchema),
       401: messageSchema,
       403: messageSchema,
     },
   }
 );
 
-fileRouter.get(
+projectRouter.get(
   '/:id',
   async ({ headers: { auth }, params: { id }, error }) => {
     const user = await validateSessionToken(auth);
@@ -50,19 +54,31 @@ fileRouter.get(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
-      .from(File)
-      .where(and(eq(File.userId, user.id), eq(File.id, id)));
+      .select({ id: Project.id })
+      .from(Project)
+      .where(and(eq(Project.userId, user.id), eq(Project.id, id)));
     const shared = await db
-      .select({ userId: SharedFile.userId, fileId: SharedFile.fileId })
-      .from(SharedFile)
-      .where(and(eq(SharedFile.userId, user.id), eq(SharedFile.fileId, id)));
+      .select({
+        contactId: ContactProject.contactId,
+        projectId: ContactProject.projectId,
+      })
+      .from(ContactProject)
+      .where(
+        and(
+          eq(ContactProject.contactId, user.id),
+          eq(ContactProject.projectId, id)
+        )
+      );
     if (owns.length < 1 && shared.length < 1 && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
       });
     }
-    const data = await db.select().from(File).where(eq(File.id, id));
+    const data = await db
+      .select({ project: Project, folder: Folder })
+      .from(Project)
+      .innerJoin(Folder, eq(Folder.projectId, Project.id))
+      .where(eq(Project.id, id));
     if (data.length < 1) {
       return error(404, {
         message: 'Not found',
@@ -76,7 +92,10 @@ fileRouter.get(
     }),
     params: t.Object({ id: t.Integer() }),
     response: {
-      200: FileSelSchema,
+      200: t.Object({
+        project: ProjectSelSchema,
+        folder: FolderSelSchema,
+      }),
       404: messageSchema,
       401: messageSchema,
       403: messageSchema,
@@ -84,26 +103,65 @@ fileRouter.get(
   }
 );
 
-fileRouter.post(
+projectRouter.get(
+  '/user',
+  async ({ headers: { auth }, error }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    const data = await db
+      .select({ project: Project, folder: Folder })
+      .from(Project)
+      .innerJoin(Folder, eq(Folder.projectId, Project.id))
+      .where(eq(Project.userId, user.id));
+    return data[0];
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    response: {
+      200: t.Union([t.Object({
+        project: ProjectSelSchema,
+        folder: FolderSelSchema,
+      }), t.Undefined()]),
+      404: messageSchema,
+      401: messageSchema,
+      403: messageSchema,
+    },
+  }
+);
+
+projectRouter.post(
   '/',
   async ({ headers: { auth }, body, set, error }) => {
     const user = await validateSessionToken(auth);
     if (!user) {
       return error(401, { message: 'No autorizado' });
     }
-    const owns = await db
-      .select({ id: Folder.id })
-      .from(Folder)
-      .where(and(eq(Folder.userId, user.id), eq(Folder.id, body.folderId)));
-    if (owns.length < 1 && user.rol !== 'Admin') {
-      return error(403, { message: 'No tiene permisos' });
-    }
     set.status = 201;
-    const fileName = `${Date.now()}_${body.file.name}`;
-    const route = `assets/UserId${body.userId}/${fileName}`;
-    await Bun.write(route, body.file);
-    const data: FileTypeIn = { ...body, route: route, name: body.file.name };
-    await db.insert(File).values(data);
+    let imageRoute: string | undefined;
+    if (body.img) {
+      const image: File = body.img;
+      imageRoute = `public/img/${Date.now()}${path.extname(image.name)}`;
+      await Bun.write(imageRoute, body.img);
+    }
+    const proyecto = await db
+      .insert(Project)
+      .values({
+        ...body,
+        img: imageRoute,
+        clientId: Number(body.clientId),
+        userId: Number(body.userId),
+      })
+      .returning({ id: Project.id });
+    // await mkdir(`assets/ProjectId${proyecto[0].id}`, { recursive: false });
+    await db.insert(Folder).values({
+      name: body.nombre,
+      userId: Number(body.userId),
+      projectId: proyecto[0].id,
+    });
     return {
       message: 'success',
     };
@@ -112,7 +170,7 @@ fileRouter.post(
     headers: t.Object({
       auth: t.String(),
     }),
-    body: FileInSchema,
+    body: ProjectInSchema,
     response: {
       201: messageSchema,
       400: messageSchema,
@@ -122,7 +180,7 @@ fileRouter.post(
   }
 );
 
-fileRouter.put(
+projectRouter.put(
   '/:id',
   async ({ headers: { auth }, body, params: { id }, error }) => {
     const user = await validateSessionToken(auth);
@@ -130,26 +188,26 @@ fileRouter.put(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
-      .from(File)
-      .where(and(eq(File.userId, user.id), eq(File.id, id)));
+      .select({ id: Project.id })
+      .from(Project)
+      .where(and(eq(Project.userId, user.id), eq(Project.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
-    const data = await db.select().from(File).where(eq(File.id, id));
+    let img: string | undefined;
+    if (body.img) {
+      const image: File = body.img;
+      img = `public/img/${Date.now()}${path.extname(image.name)}`;
+      await Bun.write(img, body.img);
+    }
+    const data = await db.select().from(Project).where(eq(Project.id, id));
     if (data.length < 1) {
       return error(404, { message: 'Not found' });
     }
-    const fileName = `${Date.now()}_${body.name}`;
-    const oldRoute = data[0].route;
-    const oldArr = oldRoute.split('/').slice(0, -1);
-    oldArr.push(fileName);
-    const newRoute = oldArr.join('/');
-    await rename(oldRoute, newRoute);
     await db
-      .update(File)
-      .set({ name: body.name, route: newRoute, updatedAt: new Date() })
-      .where(eq(File.id, id));
+      .update(Project)
+      .set({ updatedAt: new Date(), ...body, img: img })
+      .where(eq(Project.id, id));
     return {
       message: 'success',
     };
@@ -158,7 +216,7 @@ fileRouter.put(
     headers: t.Object({
       auth: t.String(),
     }),
-    body: FileUpSchema,
+    body: ProjectUpSchema,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
@@ -172,7 +230,7 @@ fileRouter.put(
   }
 );
 
-fileRouter.delete(
+projectRouter.delete(
   '/:id',
   async ({ headers: { auth }, params: { id }, error }) => {
     const user = await validateSessionToken(auth);
@@ -180,19 +238,22 @@ fileRouter.delete(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id, userId: Folder.userId })
-      .from(Folder)
-      .where(and(eq(Folder.userId, user.id), eq(Folder.id, id)));
+      .select({ id: Project.id, clientId: Project.userId })
+      .from(Project)
+      .where(and(eq(Project.userId, user.id), eq(Project.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
-    const data = await db.select().from(File).where(eq(File.id, id));
+    const data = await db.select().from(Project).where(eq(Project.id, id));
     if (data.length < 1) {
       return error(404, { message: 'Not found' });
     }
-    await db.delete(File).where(eq(File.id, id));
-    await Bun.file(data[0].route).delete();
-    return { message: 'File deleted' };
+    const imgRoute = data[0].img;
+    if (imgRoute && imgRoute !== 'public/img/profile.png') {
+      Bun.file(imgRoute).delete();
+    }
+    await db.delete(Project).where(eq(Project.id, id));
+    return { message: 'Project deleted' };
   },
   {
     headers: t.Object({
@@ -208,7 +269,7 @@ fileRouter.delete(
   }
 );
 
-fileRouter.post(
+projectRouter.post(
   '/share',
   async ({ body, headers: { auth }, error }) => {
     const user = await validateSessionToken(auth);
@@ -216,15 +277,13 @@ fileRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
-      .from(File)
-      .where(and(eq(File.userId, user.id), eq(File.id, body.fileId)));
+      .select({ id: Project.id })
+      .from(Project)
+      .where(and(eq(Project.userId, user.id), eq(Project.id, body.projectId)));
     if (owns.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
-    await db
-      .insert(SharedFile)
-      .values({ fileId: body.fileId, userId: body.userId, root: true });
+    await db.insert(ContactProject).values(body);
     return {
       message: 'success',
     };
@@ -233,7 +292,7 @@ fileRouter.post(
     headers: t.Object({
       auth: t.String(),
     }),
-    body: SharedFileInSchema,
+    body: ContactProjectInSchema,
     response: {
       200: messageSchema,
       401: messageSchema,
@@ -245,7 +304,7 @@ fileRouter.post(
   }
 );
 
-fileRouter.post(
+projectRouter.post(
   '/unshare',
   async ({ body, headers: { auth }, error }) => {
     const user = await validateSessionToken(auth);
@@ -253,18 +312,18 @@ fileRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
-      .from(File)
-      .where(and(eq(File.userId, user.id), eq(File.id, body.fileId)));
+      .select({ id: Project.id })
+      .from(Project)
+      .where(and(eq(Project.userId, user.id), eq(Project.id, body.projectId)));
     if (owns.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
     await db
-      .delete(SharedFile)
+      .delete(ContactProject)
       .where(
         and(
-          eq(SharedFile.fileId, body.fileId),
-          eq(SharedFile.userId, body.userId)
+          eq(ContactProject.projectId, body.projectId),
+          eq(ContactProject.contactId, body.contactId)
         )
       );
     return {
@@ -275,7 +334,7 @@ fileRouter.post(
     headers: t.Object({
       auth: t.String(),
     }),
-    body: SharedFileInSchema,
+    body: ContactProjectInSchema,
     response: {
       200: messageSchema,
       401: messageSchema,
@@ -287,4 +346,4 @@ fileRouter.post(
   }
 );
 
-export default fileRouter;
+export default projectRouter;

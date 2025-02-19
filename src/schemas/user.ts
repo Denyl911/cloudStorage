@@ -1,7 +1,12 @@
 import { pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import timestamps from './columns.helpers';
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-typebox';
+import {
+  //createInsertSchema,
+  createSchemaFactory,
+  createSelectSchema,
+  createUpdateSchema,
+} from 'drizzle-typebox';
 import { t } from 'elysia';
 
 export const User = pgTable('users', {
@@ -10,7 +15,7 @@ export const User = pgTable('users', {
   lastName: varchar().notNull(),
   email: varchar().notNull().unique(),
   password: varchar().notNull(),
-  rol: varchar().notNull(),
+  rol: varchar({ enum: ['Admin', 'User', 'Contacto'] }).notNull(),
   image: varchar().default('public/img/default.jpg'),
   estatus: varchar().notNull().default('Activo'),
   ...timestamps,
@@ -19,7 +24,14 @@ export const User = pgTable('users', {
 export type UserType = InferSelectModel<typeof User>;
 export type UserTypeIn = InferInsertModel<typeof User>;
 export const UserSelSchema = createSelectSchema(User);
+const { createInsertSchema } = createSchemaFactory({ typeboxInstance: t });
 export const UserInSchema = createInsertSchema(User, {
   image: t.Optional(t.File()),
 });
-export const UserUpSchema = createUpdateSchema(User);
+export const UserUpSchema = createUpdateSchema(User, {
+  image: t.Optional(t.File()),
+});
+export const ContactoInSchema = t.Composite([
+  UserInSchema,
+  t.Object({ clientId: t.Integer() }),
+]);

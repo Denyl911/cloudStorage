@@ -1,9 +1,10 @@
 import { Elysia, t } from 'elysia';
-import { eq, ne } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { mkdir } from 'node:fs/promises';
 import path from 'path';
 import db from '../config/db.config';
 import {
+  ContactoInSchema,
   User,
   UserInSchema,
   UserSelSchema,
@@ -17,23 +18,23 @@ import {
   itsAdmin,
   validateSessionToken,
 } from '../utils/auth';
-import { Folder } from '../schemas/folder';
+import { ClientContact } from '../schemas/clients_contacts';
 
-const userRouter = new Elysia({
-  prefix: '/users',
+const contactRouter = new Elysia({
+  prefix: '/contacts',
   detail: {
-    tags: ['Users'],
+    tags: ['Contactos'],
   },
 });
 
-userRouter.get(
+contactRouter.get(
   '/',
   async ({ headers: { auth }, error }) => {
     const isadmin = await itsAdmin(auth);
     if (!isadmin) {
       return error(401, { message: 'No autorizado' });
     }
-    return await db.select().from(User).where(ne(User.rol, 'Contacto'));
+    return await db.select().from(User).where(eq(User.rol, 'Contacto'));
   },
   {
     headers: t.Object({
@@ -46,7 +47,7 @@ userRouter.get(
   }
 );
 
-userRouter.get(
+contactRouter.get(
   '/:id',
   async ({ headers: { auth }, params: { id }, error }) => {
     const user = await validateSessionToken(auth);
@@ -80,36 +81,38 @@ userRouter.get(
   }
 );
 
-userRouter.post(
+contactRouter.post(
   '/',
   async ({ body, set }) => {
     set.status = 201;
     body.password = await Bun.password.hash(body.password);
-    let data: UserTypeIn;
+    body.rol = 'Contacto';
+    let imgRoute: string | undefined;
     if (body.image) {
       const image: File = body.image;
-      const route = `public/img/${Date.now()}${path.extname(image.name)}`;
-      await Bun.write(route, body.image);
-      data = { ...body, image: route };
-    } else {
-      data = { ...body, image: undefined };
+      imgRoute = `public/img/${Date.now()}${path.extname(image.name)}`;
+      await Bun.write(imgRoute, body.image);
     }
-    const user = await db.insert(User).values(data).returning({ id: User.id });
-    await mkdir(`assets/UserId${user[0].id}`, { recursive: false });
-    await db.insert(Folder).values({ name: 'root', userId: user[0].id });
+    const data = await db
+      .insert(User)
+      .values({ ...body, image: imgRoute })
+      .returning({ id: User.id });
+    await db
+      .insert(ClientContact)
+      .values({ clientId: body.clientId, contactId: data[0].id });
     return {
       message: 'success',
     };
   },
   {
-    body: UserInSchema,
+    body: ContactoInSchema,
     response: {
       201: messageSchema,
     },
   }
 );
 
-userRouter.put(
+contactRouter.put(
   '/:id',
   async ({ headers: { auth }, params: { id }, body, error }) => {
     const user = await validateSessionToken(auth);
@@ -150,7 +153,7 @@ userRouter.put(
   }
 );
 
-userRouter.delete(
+contactRouter.delete(
   '/:id',
   async ({ headers: { auth }, params: { id }, body, error }) => {
     const user = await validateSessionToken(auth);
@@ -171,9 +174,6 @@ userRouter.delete(
       Bun.file(imgRoute).delete();
     }
     await db.delete(User).where(eq(User.id, id));
-    //
-    /// Eliminar Folders y archivos
-    //
     return { message: 'User deleted' };
   },
   {
@@ -189,7 +189,7 @@ userRouter.delete(
   }
 );
 
-userRouter.post(
+contactRouter.post(
   '/login',
   async ({ body, error }) => {
     const data = await db.select().from(User).where(eq(User.email, body.email));
@@ -223,7 +223,7 @@ userRouter.post(
   }
 );
 
-userRouter.post(
+contactRouter.post(
   '/logout',
   async ({ cookie: { auth } }) => {
     await invalidateSession(auth.value);
@@ -241,4 +241,53 @@ userRouter.post(
   }
 );
 
-export default userRouter;
+contactRouter.post(
+  '/clientes/:idContacto',
+  async ({ body, params: { idContacto }, headers: { auth } }) => {
+    await db
+      .insert(ClientContact)
+      .values({ clientId: body.clientId, contactId: idContacto });
+    return {
+      message: 'success',
+    };
+  },
+  {
+    params: t.Object({ idContacto: t.Integer() }),
+    body: t.Object({ clientId: t.Integer() }),
+    response: {
+      201: messageSchema,
+    },
+    detail: {
+      description: 'Asignar contacto a cliente',
+    },
+  }
+);
+
+contactRouter.put(
+  '/clientes/:idContacto',
+  async ({ body, params: { idContacto }, headers: { auth } }) => {
+    await db
+      .delete(ClientContact)
+      .where(
+        and(
+          eq(ClientContact.clientId, body.clientId),
+          eq(ClientContact.contactId, idContacto)
+        )
+      );
+    return {
+      message: 'success',
+    };
+  },
+  {
+    params: t.Object({ idContacto: t.Integer() }),
+    body: t.Object({ clientId: t.Integer() }),
+    response: {
+      201: messageSchema,
+    },
+    detail: {
+      description: 'Deasignar contacto a cliente',
+    },
+  }
+);
+
+export default contactRouter;

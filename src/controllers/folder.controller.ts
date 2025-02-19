@@ -276,7 +276,7 @@ folderRouter.delete(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -448,11 +448,6 @@ folderRouter.get(
     return file(zipName);
   },
   {
-    // response: {
-    //   200: allContentSchema,
-    //   404: messageSchema,
-    //   401: messageSchema,
-    // },
     params: t.Object({ id: t.Integer() }),
     headers: t.Object({
       auth: t.String(),
