@@ -13,6 +13,7 @@ import {
 import { messageSchema } from '../utils/utils';
 import {
   createSession,
+  invalidateAllSessions,
   invalidateSession,
   itsAdmin,
   validateSessionToken,
@@ -225,15 +226,42 @@ userRouter.post(
 
 userRouter.post(
   '/logout',
-  async ({ cookie: { auth } }) => {
-    await invalidateSession(auth.value);
+  async ({ headers: { auth }, error }) => {
+    await invalidateSession(auth);
     return {
       message: 'success',
     };
   },
   {
+    headers: t.Object({
+      auth: t.String(),
+    }),
     response: {
       200: messageSchema,
+    },
+  }
+);
+
+userRouter.post(
+  '/unauth/:id',
+  async ({ headers: { auth }, params: { id }, error }) => {
+    const isadmin = await itsAdmin(auth);
+    if (!isadmin) {
+      return error(401, { message: 'No autorizado' });
+    }
+    await invalidateAllSessions(id);
+    return {
+      message: 'success',
+    };
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ id: t.Integer() }),
+    response: {
+      200: messageSchema,
+      401: messageSchema,
     },
     cookie: t.Cookie({
       auth: t.String(),
