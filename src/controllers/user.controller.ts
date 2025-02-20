@@ -298,4 +298,21 @@ userRouter.post(
   }
 );
 
+userRouter.post(
+  '/check',
+  async ({ body }) => {
+    const data = await db.select().from(User).where(eq(User.email, body.email));
+    if (data.length < 1) {
+      return { exist: 'No' };
+    }
+    return { exist: 'Si' };
+  },
+  {
+    body: t.Object({ email: t.String({ format: 'email' }) }),
+    response: {
+      200: t.Object({ exist: t.String({ examples: ['Si', 'No'] }) }),
+    },
+  }
+);
+
 export default userRouter;

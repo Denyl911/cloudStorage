@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { eq, exists, or } from 'drizzle-orm';
 import path from 'path';
 import db from '../config/db.config';
 import {
@@ -172,6 +172,40 @@ clientRouter.delete(
       200: messageSchema,
       401: messageSchema,
       403: messageSchema,
+    },
+  }
+);
+
+clientRouter.post(
+  '/check',
+  async ({ body, set }) => {
+    const data = await db
+      .select()
+      .from(Client)
+      .where(
+        or(
+          eq(Client.correo, body.correo),
+          eq(Client.whatsapp, body.whatsapp),
+          eq(Client.telefono, body.telefono),
+          eq(Client.rfc, body.rfc)
+        )
+      );
+    if (data.length < 1) {
+      set.status = 204;
+      return { exist: 'No' };
+    }
+    return { exist: 'Si', client: data[0] };
+  },
+  {
+    body: t.Object({
+      correo: t.String({ format: 'email' }),
+      whatsapp: t.String(),
+      telefono: t.String(),
+      rfc: t.String(),
+    }),
+    response: {
+      208: t.Object({ exists: t.String({default: 'Si'}), client: ClientSelSchema }),
+      200: t.Object({ exist: t.String({default: 'No'}) }),
     },
   }
 );
