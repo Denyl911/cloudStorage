@@ -7,14 +7,13 @@ import { SharedFile } from '../schemas/sharedFiles';
 import fs from 'fs/promises';
 
 const assetRouter = new Elysia({
-  prefix: '/assets',
   detail: {
     tags: ['Files'],
   },
 });
 
 assetRouter.get(
-  '/*',
+  '/assets/*',
   async ({ params, headers: { auth }, query: { token }, error }) => {
     const ruta = `assets/${params['*']}`;
     const exist = await db
@@ -70,7 +69,7 @@ assetRouter.get(
 assetRouter.get(
   '/base64/*',
   async ({ params, headers: { auth }, query: { token }, error }) => {
-    const ruta = `assets/${params['*']}`;
+    const ruta = params['*'];
     const exist = await db
       .select({ id: File.id, route: File.route, name: File.name })
       .from(File)
