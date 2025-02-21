@@ -199,10 +199,11 @@ userRouter.delete(
     if (imgRoute && imgRoute !== 'public/img/default.jpg') {
       await Bun.file(imgRoute).delete();
     }
+    //
+    /// Eliminar Folders y archivos locales
+    //
     await db.delete(User).where(eq(User.id, id));
-    //
-    /// Eliminar Folders y archivos
-    //
+    
     return { message: 'User deleted' };
   },
   {

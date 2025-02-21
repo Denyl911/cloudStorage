@@ -13,7 +13,7 @@ import { User } from './user';
 export const Project = pgTable('projects', {
   id: serial().primaryKey(),
   userId: integer()
-    .references(() => User.id, { onDelete: 'set null' })
+    .references(() => User.id, { onDelete: 'cascade' })
     .notNull(),
   clientId: integer().references(() => Client.id , { onDelete: 'cascade' }),
   nombre: varchar().notNull(),

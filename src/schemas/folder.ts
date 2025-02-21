@@ -23,7 +23,7 @@ export const Folder = pgTable('folders', {
     .references(() => User.id, { onDelete: 'cascade' }),
   projectId: integer().references(() => Project.id, { onDelete: 'set null' }),
   parentFolderId: integer().references((): AnyPgColumn => Folder.id, {
-    onDelete: 'cascade',
+    onDelete: 'set null',
   }),
   ...timestamps,
 });
