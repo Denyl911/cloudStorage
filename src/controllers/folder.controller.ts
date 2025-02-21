@@ -58,7 +58,7 @@ folderRouter.get(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, id)));
     const shared = await db
@@ -204,16 +204,42 @@ folderRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(
         and(eq(Folder.userId, user.id), eq(Folder.id, body.parentFolderId))
       );
-    if (owns.length < 1 && user.rol !== 'Admin') {
+    const shared = await db
+      .select({ id: SharedFolder.userId })
+      .from(SharedFolder)
+      .where(
+        and(
+          eq(SharedFolder.userId, user.id),
+          eq(SharedFolder.folderId, body.parentFolderId)
+        )
+      );
+    if (owns.length < 1 && shared.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
     set.status = 201;
-    await db.insert(Folder).values(body).returning({ id: Folder.id });
+
+    if (shared.length >= 1) {
+      const folderOwner = await db
+        .select({ userId: Folder.userId })
+        .from(Folder)
+        .where(eq(Folder.id, body.parentFolderId));
+      const folderId = await db
+        .insert(Folder)
+        .values({ ...body, userId: folderOwner[0].userId })
+        .returning({ id: Folder.id });
+      await db
+        .insert(SharedFolder)
+        .values({ userId: user.id, folderId: folderId[0].id });
+      return {
+        message: 'success',
+      };
+    }
+    await db.insert(Folder).values(body);
     return {
       message: 'success',
     };
@@ -240,7 +266,7 @@ folderRouter.put(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -338,7 +364,7 @@ folderRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, body.folderId)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -374,7 +400,7 @@ folderRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, body.folderId)));
     if (owns.length < 1 && user.rol !== 'Admin') {

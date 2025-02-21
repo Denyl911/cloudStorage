@@ -10,7 +10,11 @@ import {
   FileUpSchema,
 } from '../schemas/file';
 import { messageSchema } from '../utils/utils';
-import { SharedFile, SharedFileInSchema } from '../schemas/sharedFiles';
+import {
+  SharedFile,
+  SharedFileInSchema,
+  SharedFolder,
+} from '../schemas/sharedFiles';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
 import { Folder } from '../schemas/folder';
 
@@ -50,7 +54,7 @@ fileRouter.get(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
+      .select({ id: File.id, userId: File.userId })
       .from(File)
       .where(and(eq(File.userId, user.id), eq(File.id, id)));
     const shared = await db
@@ -92,18 +96,44 @@ fileRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Folder.id })
+      .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, body.folderId)));
-    if (owns.length < 1 && user.rol !== 'Admin') {
+    const shared = await db
+      .select({ id: SharedFolder.userId })
+      .from(SharedFolder)
+      .where(
+        and(
+          eq(SharedFolder.userId, user.id),
+          eq(SharedFolder.folderId, body.folderId)
+        )
+      );
+    if (owns.length < 1 && shared.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
+
     set.status = 201;
     const fileName = `${Date.now()}_${body.file.name}`;
-    const route = `assets/UserId${body.userId}/${fileName}`;
+    //
+    /// O guardar el archivo dentro de la carpeta del dueño
+    //
+    const route = `assets/UserId${user.id}/${fileName}`;
     await Bun.write(route, body.file);
     const data: FileTypeIn = { ...body, route: route, name: body.file.name };
-    await db.insert(File).values(data);
+
+    const fileId = await db
+      .insert(File)
+      .values(data)
+      .returning({ id: File.id });
+    if (shared.length >= 1) {
+      const folderOwner = await db
+        .select({ userId: Folder.userId })
+        .from(Folder)
+        .where(eq(Folder.id, body.folderId));
+      await db
+        .insert(SharedFile)
+        .values({ userId: folderOwner[0].userId, fileId: fileId[0].id });
+    }
     return {
       message: 'success',
     };
@@ -130,7 +160,7 @@ fileRouter.put(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
+      .select({ id: File.id, userId: File.userId })
       .from(File)
       .where(and(eq(File.userId, user.id), eq(File.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -216,7 +246,7 @@ fileRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
+      .select({ id: File.id, userId: File.userId })
       .from(File)
       .where(and(eq(File.userId, user.id), eq(File.id, body.fileId)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -253,7 +283,7 @@ fileRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
+      .select({ id: File.id, userId: File.userId })
       .from(File)
       .where(and(eq(File.userId, user.id), eq(File.id, body.fileId)));
     if (owns.length < 1 && user.rol !== 'Admin') {

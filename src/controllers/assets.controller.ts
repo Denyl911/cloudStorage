@@ -35,7 +35,7 @@ assetRouter.get(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: File.id })
+      .select({ id: File.id, userId: File.userId })
       .from(File)
       .where(and(eq(File.userId, user.id), eq(File.id, exist[0].id)));
     const shared = await db
@@ -98,7 +98,7 @@ assetRouter.get(
     }
 
     const owns = await db
-      .select({ id: File.id })
+      .select({ id: File.id, userId: File.userId })
       .from(File)
       .where(and(eq(File.userId, user.id), eq(File.id, exist[0].id)));
 

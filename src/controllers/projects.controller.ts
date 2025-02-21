@@ -54,7 +54,7 @@ projectRouter.get(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Project.id })
+      .select({ id: Project.id, userId: Project.userId })
       .from(Project)
       .where(and(eq(Project.userId, user.id), eq(Project.id, id)));
     const shared = await db
@@ -191,7 +191,7 @@ projectRouter.put(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Project.id })
+      .select({ id: Project.id, userId: Project.userId })
       .from(Project)
       .where(and(eq(Project.userId, user.id), eq(Project.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -241,7 +241,7 @@ projectRouter.delete(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Project.id, clientId: Project.userId })
+      .select({ id: Project.id, userId: Project.userId })
       .from(Project)
       .where(and(eq(Project.userId, user.id), eq(Project.id, id)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -281,7 +281,7 @@ projectRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Project.id })
+      .select({ id: Project.id, userId: Project.userId })
       .from(Project)
       .where(and(eq(Project.userId, user.id), eq(Project.id, body.projectId)));
     if (owns.length < 1 && user.rol !== 'Admin') {
@@ -316,7 +316,7 @@ projectRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     const owns = await db
-      .select({ id: Project.id })
+      .select({ id: Project.id, userId: Project.userId })
       .from(Project)
       .where(and(eq(Project.userId, user.id), eq(Project.id, body.projectId)));
     if (owns.length < 1 && user.rol !== 'Admin') {
