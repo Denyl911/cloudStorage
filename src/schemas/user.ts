@@ -35,3 +35,14 @@ export const ContactoInSchema = t.Composite([
   UserInSchema,
   t.Object({ clientId: t.Integer() }),
 ]);
+
+export const ClientContactSel = t.Object({
+  clientId: t.Integer(),
+  name: t.Nullable(t.String()),
+  lastName: t.Nullable(t.String()),
+  email: t.Nullable(t.String()),
+  image: t.Nullable(t.String()),
+  estatus: t.Nullable(t.String()),
+  createdAt: t.Nullable(t.Date()),
+  updatedAt: t.Nullable(t.Date()),
+});

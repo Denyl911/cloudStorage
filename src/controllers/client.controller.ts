@@ -12,6 +12,7 @@ import {
 import { messageSchema } from '../utils/utils';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
 import { ClientContact } from '../schemas/clients_contacts';
+import { ClientContactSel, User } from '../schemas/user';
 
 const clientRouter = new Elysia({
   prefix: '/clients',
@@ -71,6 +72,58 @@ clientRouter.get(
       404: messageSchema,
       401: messageSchema,
       403: messageSchema,
+    },
+  }
+);
+
+clientRouter.get(
+  '/contacts/:idClient',
+  async ({ headers: { auth }, params: { idClient }, error }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    // Revisar tabla clients_contacts
+    // if (id !== user.id && user.rol !== 'Admin') {
+    //   return error(403, {
+    //     message: 'No tiene permisos',
+    //   });
+    // }
+    const data = await db
+      .select({
+        clientId: ClientContact.clientId,
+        name: User.name,
+        lastName: User.lastName,
+        email: User.email,
+        image: User.image,
+        estatus: User.estatus,
+        createdAt: User.createdAt,
+        updatedAt: User.updatedAt,
+      })
+      .from(ClientContact)
+      .leftJoin(User, eq(ClientContact.contactId, User.id))
+      .where(eq(ClientContact.clientId, idClient));
+    if (data.length < 1) {
+      return error(404, {
+        message: 'Not found',
+      });
+    }
+    return data;
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ idClient: t.Integer() }),
+    response: {
+      200: t.Array(ClientContactSel),
+      404: messageSchema,
+      401: messageSchema,
+      403: messageSchema,
+    },
+    detail: {
+      description:
+        'Obtener contactos de un cliente',
     },
   }
 );
