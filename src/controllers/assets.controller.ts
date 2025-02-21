@@ -115,7 +115,7 @@ assetRouter.get(
 
     try {
       const fileBuffer = await fs.readFile(ruta);
-      return { base64: fileBuffer.toString('base64') };
+      return { name: exist[0].name, base64: fileBuffer.toString('base64') };
     } catch (err) {
       return error(500, { message: 'Error al leer el archivo' });
     }
