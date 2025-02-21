@@ -15,7 +15,7 @@ const assetRouter = new Elysia({
 assetRouter.get(
   '/assets/*',
   async ({ params, headers: { auth }, query: { token }, error }) => {
-    const ruta = `assets/${params['*']}`;
+    const ruta = decodeURIComponent(`assets/${params['*']}`);
     const exist = await db
       .select({ id: File.id, route: File.route })
       .from(File)
@@ -69,7 +69,8 @@ assetRouter.get(
 assetRouter.get(
   '/base64/*',
   async ({ params, headers: { auth }, query: { token }, error }) => {
-    const ruta = params['*'];
+    const ruta = decodeURIComponent(params['*']);
+    
     const exist = await db
       .select({ id: File.id, route: File.route, name: File.name })
       .from(File)
