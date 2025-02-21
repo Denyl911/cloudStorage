@@ -121,19 +121,23 @@ fileRouter.post(
     await Bun.write(route, body.file);
     const data: FileTypeIn = { ...body, route: route, name: body.file.name };
 
-    const fileId = await db
-      .insert(File)
-      .values(data)
-      .returning({ id: File.id });
     if (shared.length >= 1) {
       const folderOwner = await db
         .select({ userId: Folder.userId })
         .from(Folder)
         .where(eq(Folder.id, body.folderId));
+      const fileId = await db
+        .insert(File)
+        .values({ ...data, userId: folderOwner[0].userId })
+        .returning({ id: File.id });
       await db
         .insert(SharedFile)
-        .values({ userId: folderOwner[0].userId, fileId: fileId[0].id });
+        .values({ userId: user.id, fileId: fileId[0].id });
+      return {
+        message: 'success',
+      };
     }
+    await db.insert(File).values(data).returning({ id: File.id });
     return {
       message: 'success',
     };
