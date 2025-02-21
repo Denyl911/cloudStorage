@@ -19,6 +19,7 @@ import {
   validateSessionToken,
 } from '../utils/auth';
 import { ClientContact } from '../schemas/clients_contacts';
+import { Folder } from '../schemas/folder';
 
 const contactRouter = new Elysia({
   prefix: '/contacts',
@@ -128,6 +129,8 @@ contactRouter.post(
     await db
       .insert(ClientContact)
       .values({ clientId: body.clientId, contactId: data[0].id });
+    await mkdir(`assets/UserId${data[0].id}`, { recursive: false });
+    await db.insert(Folder).values({ name: 'root', userId: data[0].id });
     return {
       message: 'success',
     };
@@ -201,6 +204,9 @@ contactRouter.delete(
     if (imgRoute && imgRoute !== 'public/img/default.jpg') {
       await Bun.file(imgRoute).delete();
     }
+    //
+    /// Eliminar Folders y archivos locales
+    //
     await db.delete(ClientContact).where(eq(ClientContact.contactId, id));
     await db.delete(User).where(eq(User.id, id));
     return { message: 'User deleted' };
