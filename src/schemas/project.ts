@@ -13,9 +13,9 @@ import { User } from './user';
 export const Project = pgTable('projects', {
   id: serial().primaryKey(),
   userId: integer()
-    .references(() => User.id)
+    .references(() => User.id, { onDelete: 'set null' })
     .notNull(),
-  clientId: integer().references(() => Client.id),
+  clientId: integer().references(() => Client.id , { onDelete: 'cascade' }),
   nombre: varchar().notNull(),
   giro: varchar().notNull(),
   descripcion: text(),

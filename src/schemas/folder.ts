@@ -20,9 +20,11 @@ export const Folder = pgTable('folders', {
   name: varchar().notNull(),
   userId: integer()
     .notNull()
-    .references(() => User.id),
-  projectId: integer().references(() => Project.id),
-  parentFolderId: integer().references((): AnyPgColumn => Folder.id),
+    .references(() => User.id, { onDelete: 'cascade' }),
+  projectId: integer().references(() => Project.id, { onDelete: 'set null' }),
+  parentFolderId: integer().references((): AnyPgColumn => Folder.id, {
+    onDelete: 'cascade',
+  }),
   ...timestamps,
 });
 

@@ -10,10 +10,10 @@ export const ClientContact = pgTable(
   {
     clientId: integer()
       .notNull()
-      .references(() => Client.id),
+      .references(() => Client.id, { onDelete: 'cascade' }),
     contactId: integer()
       .notNull()
-      .references(() => User.id),
+      .references(() => User.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.clientId, t.contactId] })]
 );
@@ -23,10 +23,10 @@ export const ContactProject = pgTable(
   {
     projectId: integer()
       .notNull()
-      .references(() => Project.id),
+      .references(() => Project.id, { onDelete: 'cascade' }),
     contactId: integer()
       .notNull()
-      .references(() => User.id),
+      .references(() => User.id, { onDelete: 'cascade' }),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.contactId] })]
 );

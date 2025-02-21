@@ -10,10 +10,10 @@ export const SharedFile = pgTable(
   {
     userId: integer()
       .notNull()
-      .references(() => User.id),
+      .references(() => User.id, { onDelete: 'cascade' }),
     fileId: integer()
       .notNull()
-      .references(() => File.id),
+      .references(() => File.id, { onDelete: 'cascade' }),
     root: boolean().default(false),
   },
   (t) => [primaryKey({ columns: [t.userId, t.fileId] })]
@@ -24,10 +24,10 @@ export const SharedFolder = pgTable(
   {
     userId: integer()
       .notNull()
-      .references(() => User.id),
+      .references(() => User.id, { onDelete: 'cascade' }),
     folderId: integer()
       .notNull()
-      .references(() => Folder.id),
+      .references(() => Folder.id, { onDelete: 'cascade' }),
     root: boolean().default(false),
   },
   (t) => [primaryKey({ columns: [t.userId, t.folderId] })]
