@@ -8,7 +8,7 @@ import fs from 'fs/promises';
 
 const assetRouter = new Elysia({
   detail: {
-    tags: ['Files'],
+    tags: ['Download File'],
   },
 });
 
@@ -49,7 +49,7 @@ assetRouter.get(
         message: 'No tiene permisos',
       });
     }
-    return file(`assets/${params['*']}`);
+    return file(ruta);
   },
   {
     params: t.Object({ '*': t.String() }),
