@@ -24,7 +24,6 @@ const app = new Elysia()
         },
       },
       path: '/docs',
-      exclude: ['/']
     })
   )
   .use(staticPlugin())
