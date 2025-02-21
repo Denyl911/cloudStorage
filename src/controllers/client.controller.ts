@@ -11,6 +11,7 @@ import {
 } from '../schemas/client';
 import { messageSchema } from '../utils/utils';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { ClientContact } from '../schemas/clients_contacts';
 
 const clientRouter = new Elysia({
   prefix: '/clients',
@@ -158,8 +159,9 @@ clientRouter.delete(
       .where(eq(Client.id, id));
     const imgRoute = data[0].img;
     if (imgRoute && imgRoute !== 'public/img/default.jpg') {
-      Bun.file(imgRoute).delete();
+      await Bun.file(imgRoute).delete();
     }
+    await db.delete(ClientContact).where(eq(ClientContact.clientId, id));
     await db.delete(Client).where(eq(Client.id, id));
     return { message: 'Client deleted' };
   },
@@ -204,8 +206,11 @@ clientRouter.post(
       rfc: t.String(),
     }),
     response: {
-      208: t.Object({ exists: t.String({default: 'Si'}), client: ClientSelSchema }),
-      200: t.Object({ exist: t.String({default: 'No'}) }),
+      208: t.Object({
+        exists: t.String({ default: 'Si' }),
+        client: ClientSelSchema,
+      }),
+      200: t.Object({ exist: t.String({ default: 'No' }) }),
     },
   }
 );

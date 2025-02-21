@@ -199,8 +199,9 @@ contactRouter.delete(
       .where(eq(User.id, id));
     const imgRoute = data[0].image;
     if (imgRoute && imgRoute !== 'public/img/default.jpg') {
-      Bun.file(imgRoute).delete();
+      await Bun.file(imgRoute).delete();
     }
+    await db.delete(ClientContact).where(eq(ClientContact.contactId, id));
     await db.delete(User).where(eq(User.id, id));
     return { message: 'User deleted' };
   },

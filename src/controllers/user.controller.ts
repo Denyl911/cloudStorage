@@ -197,7 +197,7 @@ userRouter.delete(
       .where(eq(User.id, id));
     const imgRoute = data[0].image;
     if (imgRoute && imgRoute !== 'public/img/default.jpg') {
-      Bun.file(imgRoute).delete();
+      await Bun.file(imgRoute).delete();
     }
     await db.delete(User).where(eq(User.id, id));
     //

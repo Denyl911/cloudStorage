@@ -122,10 +122,13 @@ projectRouter.get(
       auth: t.String(),
     }),
     response: {
-      200: t.Union([t.Object({
-        project: ProjectSelSchema,
-        folder: FolderSelSchema,
-      }), t.Undefined()]),
+      200: t.Union([
+        t.Object({
+          project: ProjectSelSchema,
+          folder: FolderSelSchema,
+        }),
+        t.Undefined(),
+      ]),
       404: messageSchema,
       401: messageSchema,
       403: messageSchema,
@@ -250,8 +253,9 @@ projectRouter.delete(
     }
     const imgRoute = data[0].img;
     if (imgRoute && imgRoute !== 'public/img/profile.png') {
-      Bun.file(imgRoute).delete();
+      await Bun.file(imgRoute).delete();
     }
+    await db.delete(ContactProject).where(eq(ContactProject.projectId, id));
     await db.delete(Project).where(eq(Project.id, id));
     return { message: 'Project deleted' };
   },
