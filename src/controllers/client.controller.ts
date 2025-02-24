@@ -92,6 +92,7 @@ clientRouter.get(
     // }
     const data = await db
       .select({
+        id: User.id,
         clientId: ClientContact.clientId,
         name: User.name,
         lastName: User.lastName,
