@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { eq, ne } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { mkdir } from 'node:fs/promises';
 import path from 'path';
 import db from '../config/db.config';
@@ -19,6 +19,7 @@ import {
   validateSessionToken,
 } from '../utils/auth';
 import { Folder } from '../schemas/folder';
+import { SharedFolder } from '../schemas/sharedFiles';
 
 const userRouter = new Elysia({
   prefix: '/users',
@@ -26,6 +27,10 @@ const userRouter = new Elysia({
     tags: ['Users'],
   },
 });
+
+const allFoldersSchema = t.Array(
+  t.Object({ id: t.Nullable(t.Integer()), name: t.Nullable(t.String()) })
+);
 
 userRouter.get(
   '/',
@@ -203,7 +208,7 @@ userRouter.delete(
     /// Eliminar Folders y archivos locales
     //
     await db.delete(User).where(eq(User.id, id));
-    
+
     return { message: 'User deleted' };
   },
   {
@@ -312,6 +317,51 @@ userRouter.post(
     body: t.Object({ email: t.String({ format: 'email' }) }),
     response: {
       200: t.Object({ exist: t.String({ examples: ['Si', 'No'] }) }),
+    },
+  }
+);
+
+userRouter.get(
+  '/folders/:userId',
+  async ({ headers: { auth }, params: { userId }, error }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    const parent = await db
+      .select()
+      .from(Folder)
+      .where(
+        and(
+          eq(Folder.name, 'root'),
+          eq(Folder.userId, userId),
+          isNull(Folder.parentFolderId)
+        )
+      );
+    const ownFolders = await db
+      .select({ id: Folder.id, name: Folder.name })
+      .from(Folder)
+      .where(eq(Folder.parentFolderId, parent[0].id));
+    const sharedFolders = await db
+      .select({ id: Folder.id, name: Folder.name })
+      .from(SharedFolder)
+      .leftJoin(Folder, eq(SharedFolder.folderId, Folder.id))
+      .where(and(eq(SharedFolder.userId, userId), eq(SharedFolder.root, true)));
+    const allFolders = [...ownFolders, ...sharedFolders];
+    return allFolders;
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ userId: t.Integer() }),
+    response: {
+      200: allFoldersSchema,
+      401: messageSchema,
+    },
+    detail: {
+      description:
+        'Obtener todos los folder de un usuario (Folders compartidos y Folders propios dentro de su carpeta root)',
     },
   }
 );
