@@ -13,6 +13,7 @@ import { messageSchema } from '../utils/utils';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
 import { ClientContact } from '../schemas/clients_contacts';
 import { ClientContactSel, User } from '../schemas/user';
+import { Project, ProjectSelSchema } from '../schemas/project';
 
 const clientRouter = new Elysia({
   prefix: '/clients',
@@ -103,11 +104,6 @@ clientRouter.get(
       .from(ClientContact)
       .leftJoin(User, eq(ClientContact.contactId, User.id))
       .where(eq(ClientContact.clientId, idClient));
-    if (data.length < 1) {
-      return error(404, {
-        message: 'Not found',
-      });
-    }
     return data;
   },
   {
@@ -117,13 +113,40 @@ clientRouter.get(
     params: t.Object({ idClient: t.Integer() }),
     response: {
       200: t.Array(ClientContactSel),
-      404: messageSchema,
       401: messageSchema,
       403: messageSchema,
     },
     detail: {
-      description:
-        'Obtener contactos de un cliente',
+      description: 'Obtener contactos de un cliente',
+    },
+  }
+);
+
+clientRouter.get(
+  '/projects/:idClient',
+  async ({ headers: { auth }, params: { idClient }, error }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    const data = await db
+      .select()
+      .from(Project)
+      .where(eq(Project.clientId, idClient));
+
+    return data;
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ idClient: t.Integer() }),
+    response: {
+      200: t.Array(ProjectSelSchema),
+      401: messageSchema,
+    },
+    detail: {
+      description: 'Obtener proyectos de un cliente',
     },
   }
 );

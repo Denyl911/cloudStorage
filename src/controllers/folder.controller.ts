@@ -30,6 +30,19 @@ const allContentSchema = t.Object({
   files: t.Array(FileSelSchema),
 });
 
+const sharedContentSchema = t.Object({
+  folders: t.Array(
+    t.Object({ id: t.Nullable(t.Integer()), name: t.Nullable(t.String()) })
+  ),
+  files: t.Array(
+    t.Object({
+      id: t.Nullable(t.Integer()),
+      name: t.Nullable(t.String()),
+      route: t.Nullable(t.String()),
+    })
+  ),
+});
+
 folderRouter.get(
   '/',
   async ({ headers: { auth }, error }) => {
@@ -350,6 +363,10 @@ folderRouter.get(
     headers: t.Object({
       auth: t.String(),
     }),
+    response: {
+      200: sharedContentSchema,
+      401: messageSchema,
+    },
     detail: {
       description: 'Obtener carpetas y archivos compartidos',
     },
@@ -431,6 +448,42 @@ folderRouter.post(
     },
     detail: {
       description: 'Desompartir carpeta con otro usuario',
+    },
+  }
+);
+
+folderRouter.get(
+  '/user-shared/:id',
+  async ({ headers: { auth }, params: { id }, error }) => {
+    const isadmin = await itsAdmin(auth);
+    if (!isadmin) {
+      return error(401, { message: 'No autorizado' });
+    }
+    const folders = await db
+      .select({ id: Folder.id, name: Folder.name })
+      .from(SharedFolder)
+      .leftJoin(Folder, eq(SharedFolder.folderId, Folder.id))
+      .where(and(eq(SharedFolder.userId, id), eq(SharedFolder.root, true)));
+    const files = await db
+      .select({ id: File.id, name: File.name, route: File.route })
+      .from(SharedFile)
+      .leftJoin(File, eq(SharedFile.fileId, File.id))
+      .where(and(eq(SharedFile.userId, id), eq(SharedFile.root, true)));
+
+    return { folders, files };
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ id: t.Integer() }),
+    response: {
+      200: sharedContentSchema,
+      401: messageSchema,
+    },
+    detail: {
+      description:
+        'Obtener el contenido (Archivos y carpetas) compartido con el usuario (Usuario o Contacto)',
     },
   }
 );
