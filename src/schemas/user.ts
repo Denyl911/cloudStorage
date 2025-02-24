@@ -37,6 +37,7 @@ export const ContactoInSchema = t.Composite([
 ]);
 
 export const ClientContactSel = t.Object({
+  id: t.Nullable(t.Integer()),
   clientId: t.Integer(),
   name: t.Nullable(t.String()),
   lastName: t.Nullable(t.String()),
