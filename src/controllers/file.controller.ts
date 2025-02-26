@@ -99,6 +99,7 @@ fileRouter.post(
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, body.folderId)));
+
     const shared = await db
       .select({ id: SharedFolder.userId })
       .from(SharedFolder)
@@ -112,32 +113,43 @@ fileRouter.post(
       return error(403, { message: 'No tiene permisos' });
     }
 
-    set.status = 201;
     const fileName = `${Date.now()}_${body.file.name}`;
-    //
-    /// O guardar el archivo dentro de la carpeta del dueño
-    //
-    const route = `assets/UserId${user.id}/${fileName}`;
+    const route = `assets/UserId${body.userId}/${fileName}`;
     await Bun.write(route, body.file);
     const data: FileTypeIn = { ...body, route: route, name: body.file.name };
 
-    if (shared.length >= 1) {
-      const folderOwner = await db
-        .select({ userId: Folder.userId })
-        .from(Folder)
-        .where(eq(Folder.id, body.folderId));
+    if (owns.length >= 1) {
+      set.status = 201;
+      const allShared = await db
+        .select()
+        .from(SharedFolder)
+        .where(eq(SharedFolder.folderId, body.folderId));
       const fileId = await db
         .insert(File)
-        .values({ ...data, userId: folderOwner[0].userId })
+        .values(data)
         .returning({ id: File.id });
-      await db
-        .insert(SharedFile)
-        .values({ userId: user.id, fileId: fileId[0].id });
+      // Compartir el nuevo archivo a los usuarios con los que comparte la carpeta
+      for (let i = 0; i < allShared.length; i++) {
+        const el = allShared[i];
+        await db
+          .insert(SharedFile)
+          .values({ userId: el.userId, fileId: fileId[0].id });
+      }
       return {
         message: 'success',
       };
     }
-    await db.insert(File).values(data).returning({ id: File.id });
+    const folderOwner = await db
+      .select({ userId: Folder.userId })
+      .from(Folder)
+      .where(eq(Folder.id, body.folderId));
+    const fileId = await db
+      .insert(File)
+      .values({ ...data, userId: folderOwner[0].userId })
+      .returning({ id: File.id });
+    await db
+      .insert(SharedFile)
+      .values({ userId: body.userId, fileId: fileId[0].id });
     return {
       message: 'success',
     };
@@ -213,16 +225,25 @@ fileRouter.delete(
     if (!user) {
       return error(401, { message: 'No autorizado' });
     }
-    const owns = await db
-      .select({ id: Folder.id, userId: Folder.userId })
-      .from(Folder)
-      .where(and(eq(Folder.userId, user.id), eq(Folder.id, id)));
-    if (owns.length < 1 && user.rol !== 'Admin') {
-      return error(403, { message: 'No tiene permisos' });
-    }
-    const data = await db.select().from(File).where(eq(File.id, id));
+    const data = await db
+      .select({ id: File.id, route: File.route })
+      .from(File)
+      .where(eq(File.id, id));
     if (data.length < 1) {
       return error(404, { message: 'Not found' });
+    }
+    const owns = await db
+      .select({ id: File.id, userId: File.userId })
+      .from(File)
+      .where(and(eq(File.userId, user.id), eq(File.id, id)));
+    const shared = await db
+      .select({ id: SharedFile.userId })
+      .from(SharedFile)
+      .where(
+        and(eq(SharedFile.userId, user.id), eq(SharedFile.fileId, data[0].id))
+      );
+    if (owns.length < 1 && shared.length < 1 && user.rol !== 'Admin') {
+      return error(403, { message: 'No tiene permisos' });
     }
     await db.delete(File).where(eq(File.id, id));
     await Bun.file(data[0].route).delete();

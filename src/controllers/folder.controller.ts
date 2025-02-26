@@ -222,8 +222,29 @@ folderRouter.post(
       .where(
         and(eq(Folder.userId, user.id), eq(Folder.id, body.parentFolderId))
       );
+    if (owns.length >= 1) {
+      set.status = 201;
+      const allShared = await db
+        .select()
+        .from(SharedFolder)
+        .where(eq(SharedFolder.folderId, body.parentFolderId));
+      const folderId = await db
+        .insert(Folder)
+        .values(body)
+        .returning({ id: Folder.id });
+      // Compartir la nueva carpeta a los usuarios con los que comparte la carpeta padre
+      for (let i = 0; i < allShared.length; i++) {
+        const el = allShared[i];
+        await db
+          .insert(SharedFolder)
+          .values({ userId: el.userId, folderId: folderId[0].id });
+      }
+      return {
+        message: 'success',
+      };
+    }
     const shared = await db
-      .select({ id: SharedFolder.userId })
+      .select({ userId: SharedFolder.userId, folderId: SharedFolder.folderId })
       .from(SharedFolder)
       .where(
         and(
@@ -231,28 +252,22 @@ folderRouter.post(
           eq(SharedFolder.folderId, body.parentFolderId)
         )
       );
-    if (owns.length < 1 && shared.length < 1 && user.rol !== 'Admin') {
+    if (shared.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
-    set.status = 201;
 
-    if (shared.length >= 1) {
-      const folderOwner = await db
-        .select({ userId: Folder.userId })
-        .from(Folder)
-        .where(eq(Folder.id, body.parentFolderId));
-      const folderId = await db
-        .insert(Folder)
-        .values({ ...body, userId: folderOwner[0].userId })
-        .returning({ id: Folder.id });
-      await db
-        .insert(SharedFolder)
-        .values({ userId: user.id, folderId: folderId[0].id });
-      return {
-        message: 'success',
-      };
-    }
-    await db.insert(Folder).values(body);
+    set.status = 201;
+    const folderOwner = await db
+      .select({ userId: Folder.userId })
+      .from(Folder)
+      .where(eq(Folder.id, body.parentFolderId));
+    const folderId = await db
+      .insert(Folder)
+      .values({ ...body, userId: folderOwner[0].userId })
+      .returning({ id: Folder.id });
+    await db
+      .insert(SharedFolder)
+      .values({ userId: body.userId, folderId: folderId[0].id });
     return {
       message: 'success',
     };
@@ -314,11 +329,27 @@ folderRouter.delete(
     if (!user) {
       return error(401, { message: 'No autorizado' });
     }
+    const data = await db
+      .select({ id: Folder.id })
+      .from(Folder)
+      .where(eq(File.id, id));
+    if (data.length < 1) {
+      return error(404, { message: 'Not found' });
+    }
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
       .where(and(eq(Folder.userId, user.id), eq(Folder.id, id)));
-    if (owns.length < 1 && user.rol !== 'Admin') {
+    const shared = await db
+      .select({ userId: SharedFolder.userId, folderId: SharedFolder.folderId })
+      .from(SharedFolder)
+      .where(
+        and(
+          eq(SharedFolder.userId, user.id),
+          eq(SharedFolder.folderId, data[0].id)
+        )
+      );
+    if (owns.length < 1 && shared.length < 1 && user.rol !== 'Admin') {
       return error(403, { message: 'No tiene permisos' });
     }
     await deleteFolderRecursive(id);
@@ -333,6 +364,7 @@ folderRouter.delete(
       200: messageSchema,
       401: messageSchema,
       403: messageSchema,
+      404: messageSchema,
     },
   }
 );
