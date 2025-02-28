@@ -197,7 +197,7 @@ userRouter.delete(
       });
     }
     const data = await db
-      .select({ image: User.image })
+      .select({ id: User.id, image: User.image })
       .from(User)
       .where(eq(User.id, id));
     const imgRoute = data[0].image;
