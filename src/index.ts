@@ -10,6 +10,10 @@ import assetRouter from './controllers/assets.controller';
 import contactRouter from './controllers/contact.controller';
 import projectRouter from './controllers/projects.controller';
 import clientRouter from './controllers/client.controller';
+import answerRouter from './controllers/answer.controller';
+import employeeRouter from './controllers/employee.controller';
+import formRouter from './controllers/forms.controller';
+import questionRouter from './controllers/question.controller';
 
 const app = new Elysia()
   .use(Logestic.preset('fancy'))
@@ -20,7 +24,8 @@ const app = new Elysia()
         info: {
           title: 'Cloud Storage Documentation',
           version: '1.0.0',
-          description: 'Se debe enviar el header "auth" en casi todas las peticiones para comprobar la pertenencia de las carpetas y/o archivos'
+          description:
+            'Se debe enviar el header "auth" en casi todas las peticiones para comprobar la pertenencia de las carpetas y/o archivos',
         },
       },
       path: '/docs',
@@ -35,6 +40,10 @@ const app = new Elysia()
   .use(projectRouter)
   .use(clientRouter)
   .use(assetRouter)
+  .use(employeeRouter)
+  .use(formRouter)
+  .use(questionRouter)
+  .use(answerRouter)
   .listen(3000);
 
 console.log(
