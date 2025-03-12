@@ -75,6 +75,9 @@ employeeRouter.get(
       401: messageSchema,
       403: messageSchema,
     },
+    detail: {
+      description: 'Obtener los formularios que un empleado tiene asignados',
+    },
   }
 );
 
@@ -125,7 +128,7 @@ employeeRouter.get(
     },
     detail: {
       description:
-        'Obtener las preguntas y respuestas de un empleado de un formulario especifico',
+        'Obtener las preguntas y respuestas de un empleado en un formulario especifico',
     },
   }
 );
@@ -292,7 +295,7 @@ employeeRouter.post(
       401: messageSchema,
     },
     detail: {
-      description: 'Crear varias empleados',
+      description: 'Crear varias empleados desde un archivo CSV',
     },
   }
 );

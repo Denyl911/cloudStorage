@@ -78,6 +78,9 @@ formRouter.get(
       404: messageSchema,
       401: messageSchema,
     },
+    detail: {
+      description: 'Obtener un formulario con sus preguntas',
+    },
   }
 );
 
@@ -241,12 +244,15 @@ formRouter.post(
       400: messageSchema,
       401: messageSchema,
     },
+    detail: {
+      description: 'Crear formulario con preguntas',
+    },
   }
 );
 
 formRouter.get(
   '/all-answers/:id',
-  async ({ headers: { auth },params: { formId }, error }) => {
+  async ({ headers: { auth }, params: { formId }, error }) => {
     // Validar user
     const user = await validateSessionToken(auth);
     if (!user) {
@@ -305,7 +311,7 @@ formRouter.get(
     },
     detail: {
       description:
-        'Obtener un formulario con todos las respuestas de cada pregunta',
+        'Obtener las preguntas de un formulario con todas las respuestas por pregunta',
     },
   }
 );
@@ -457,7 +463,7 @@ formRouter.post(
       401: messageSchema,
     },
     detail: {
-      description: 'Dessignar Formulario a Empleados medieantes sus Ids',
+      description: 'Desasignar Formulario a Empleados medieantes sus Ids',
     },
   }
 );

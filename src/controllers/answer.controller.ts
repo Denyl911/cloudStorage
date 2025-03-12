@@ -120,7 +120,8 @@ answerRouter.post(
       401: messageSchema,
     },
     detail: {
-      description: 'Crear varias respuestas',
+      description:
+        'Crear varias respuestas (Se usa para responder todas las preguntas de un formulario)',
     },
   }
 );

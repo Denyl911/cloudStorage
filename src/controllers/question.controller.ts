@@ -96,6 +96,9 @@ questionRouter.get(
       200: QuestionWithAllAnswers,
       401: messageSchema,
     },
+    detail: {
+      description: 'Obtener todas las respuestas de esa pregunta',
+    },
   }
 );
 
@@ -152,7 +155,7 @@ questionRouter.post(
       401: messageSchema,
     },
     detail: {
-      description: 'Crear varias pregunatas',
+      description: 'Crear varias preguntas',
     },
   }
 );
