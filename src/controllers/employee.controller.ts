@@ -341,7 +341,7 @@ employeeRouter.post(
           puesto: el[3],
           correo: el[4],
           telefono: el[5],
-          extra1: el[6],
+          extra1: el[6] || undefined,
         });
       }
     });
