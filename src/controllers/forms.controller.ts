@@ -13,9 +13,10 @@ import {
   FormUpSchema,
 } from '../schemas/form';
 import { messageSchema } from '../utils/utils';
-import { itsAdmin } from '../utils/auth';
-import { Question } from '../schemas/question';
+import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { Question, QuestionWithAllAnswers } from '../schemas/question';
 import { EmployeeForm } from '../schemas/employee';
+import { Answer } from '../schemas/answer';
 
 const formRouter = new Elysia({
   prefix: '/forms',
@@ -239,6 +240,72 @@ formRouter.post(
       201: messageSchema,
       400: messageSchema,
       401: messageSchema,
+    },
+  }
+);
+
+formRouter.get(
+  '/all-answers/:id',
+  async ({ headers: { auth },params: { formId }, error }) => {
+    // Validar user
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    // Obtener todas las preguntas del formulario
+    const questions = await db
+      .select({
+        id: Question.id,
+        formularioId: Question.formularioId,
+        pregunta: Question.pregunta,
+        dimension: Question.dimension,
+      })
+      .from(Question)
+      .where(eq(Question.formularioId, formId));
+
+    // Para cada pregunta, obtener todas las respuestas de todos los empleados
+    const questionsWithAnswers = await Promise.all(
+      questions.map(async (question) => {
+        const answers = await db
+          .select({
+            id: Answer.id,
+            empleadoId: Answer.empleadoId,
+            formularioId: Answer.formularioId,
+            preguntaId: Answer.preguntaId,
+            respuesta: Answer.respuesta,
+            createdAt: Answer.createdAt,
+            updatedAt: Answer.updatedAt,
+          })
+          .from(Answer)
+          .where(
+            and(
+              eq(Answer.formularioId, formId),
+              eq(Answer.preguntaId, question.id)
+            )
+          );
+
+        return {
+          ...question,
+          respuestas: answers,
+        };
+      })
+    );
+
+    return questionsWithAnswers;
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ formId: t.Integer() }),
+    response: {
+      200: t.Array(QuestionWithAllAnswers),
+      401: messageSchema,
+      403: messageSchema,
+    },
+    detail: {
+      description:
+        'Obtener un formulario con todos las respuestas de cada pregunta',
     },
   }
 );
