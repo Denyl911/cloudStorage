@@ -1,9 +1,9 @@
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
-import userRouter from './controllers/user.controller';
 import staticPlugin from '@elysiajs/static';
 import { Logestic } from 'logestic';
+import userRouter from './controllers/user.controller';
 import folderRouter from './controllers/folder.controller';
 import fileRouter from './controllers/file.controller';
 import assetRouter from './controllers/assets.controller';
@@ -22,8 +22,8 @@ const app = new Elysia()
     swagger({
       documentation: {
         info: {
-          title: 'Cloud Storage Documentation',
-          version: '1.0.0',
+          title: 'GBA Latam API Documentation',
+          version: '1.1.0',
           description:
             'Se debe enviar el header "auth" en casi todas las peticiones para comprobar la pertenencia de las carpetas y/o archivos',
         },

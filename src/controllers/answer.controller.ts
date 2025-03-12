@@ -76,6 +76,9 @@ answerRouter.post(
     }
     set.status = 201;
     await db.insert(Answer).values(body);
+    return {
+      message: 'success',
+    };
   },
   {
     headers: t.Object({
@@ -103,6 +106,9 @@ answerRouter.post(
         await tx.insert(Answer).values(el);
       }
     });
+    return {
+      message: 'success',
+    };
   },
   {
     headers: t.Object({

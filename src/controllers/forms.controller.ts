@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { randomUUIDv7 } from 'bun';
 import path from 'path';
 import db from '../config/db.config';
@@ -80,48 +80,48 @@ formRouter.get(
   }
 );
 
-formRouter.get(
-  '/reply/:hash',
-  async ({ headers: { auth }, params: { hash }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
-    const [data] = await db
-      .select()
-      .from(Form)
-      .where(eq(Form.linkFormulario, `/forms/reply/${hash}`));
-    const preguntas = await db
-      .select()
-      .from(Question)
-      .where(eq(Question.formularioId, data.id));
+// formRouter.get(
+//   '/reply/:hash',
+//   async ({ headers: { auth }, params: { hash }, error }) => {
+//     const isadmin = await itsAdmin(auth);
+//     if (!isadmin) {
+//       return error(401, { message: 'No autorizado' });
+//     }
+//     const [data] = await db
+//       .select()
+//       .from(Form)
+//       .where(eq(Form.linkFormulario, `/forms/reply/${hash}`));
+//     const preguntas = await db
+//       .select()
+//       .from(Question)
+//       .where(eq(Question.formularioId, data.id));
 
-    if (!data) {
-      return error(404, {
-        message: 'Not found',
-      });
-    }
-    return {
-      ...data,
-      preguntas: preguntas,
-    };
-  },
-  {
-    headers: t.Object({
-      auth: t.String(),
-    }),
-    params: t.Object({ hash: t.String() }),
-    response: {
-      200: FormSelSchemaWithQuestions,
-      404: messageSchema,
-      401: messageSchema,
-    },
-    detail: {
-      description:
-        'Obtener formulario con preguntas mediante el "linkFormulario"',
-    },
-  }
-);
+//     if (!data) {
+//       return error(404, {
+//         message: 'Not found',
+//       });
+//     }
+//     return {
+//       ...data,
+//       preguntas: preguntas,
+//     };
+//   },
+//   {
+//     headers: t.Object({
+//       auth: t.String(),
+//     }),
+//     params: t.Object({ hash: t.String() }),
+//     response: {
+//       200: FormSelSchemaWithQuestions,
+//       404: messageSchema,
+//       401: messageSchema,
+//     },
+//     detail: {
+//       description:
+//         'Obtener formulario con preguntas mediante el "linkFormulario"',
+//     },
+//   }
+// );
 
 formRouter.get(
   '/:id',
@@ -169,9 +169,9 @@ formRouter.post(
       const image2: File = body.logoCliente;
       const route2 = `public/img/${Date.now()}${path.extname(image2.name)}`;
       await Bun.write(route2, body.logoCliente);
-      const uid = randomUUIDv7();
-      const linkFormulario = `/forms/reply/${uid}`;
-      data = { ...body, logoGba: route1, logoCliente: route2, linkFormulario };
+      // const uid = randomUUIDv7();
+      // const linkFormulario = `/forms/reply/${uid}`;
+      data = { ...body, logoGba: route1, logoCliente: route2 };
       await db.insert(Form).values(data);
       return {
         message: 'success',
@@ -212,14 +212,18 @@ formRouter.post(
     const image2: File = body.logoCliente;
     const route2 = `public/img/${Date.now()}${path.extname(image2.name)}`;
     await Bun.write(route2, body.logoCliente);
-    const uid = randomUUIDv7();
-    const linkFormulario = `/forms/reply/${uid}`;
-    data = { ...body, logoGba: route1, logoCliente: route2, linkFormulario };
+    // const uid = randomUUIDv7();
+    // const linkFormulario = `/forms/reply/${uid}`;
+    data = { ...body, logoGba: route1, logoCliente: route2 };
     await db.transaction(async (tx) => {
-      await tx.insert(Form).values(data);
-      for (let i = 0; i < body.preguntas.length; i++) {
-        const el = body.preguntas[i];
-        await tx.insert(Question).values(el);
+      const [form] = await tx
+        .insert(Form)
+        .values(data)
+        .returning({ id: Form.id });
+      const preguntas = JSON.parse(body.preguntas);
+      for (let i = 0; i < preguntas.length; i++) {
+        const el = preguntas[i];
+        await tx.insert(Question).values({ ...el, formularioId: form.id });
       }
     });
     return {
@@ -325,6 +329,9 @@ formRouter.post(
           .values({ employeeId: id, formId: body.formularioId });
       }
     });
+    return {
+      message: 'success',
+    };
   },
   {
     headers: t.Object({
@@ -341,6 +348,49 @@ formRouter.post(
     },
     detail: {
       description: 'Asignar Formulario a Empleados medieantes sus Ids',
+    },
+  }
+);
+
+formRouter.post(
+  '/unassign',
+  async ({ headers: { auth }, body, error }) => {
+    const isadmin = await itsAdmin(auth);
+    if (!isadmin) {
+      return error(401, { message: 'No autorizado' });
+    }
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < body.employeesIds.length; i++) {
+        const id = body.employeesIds[i];
+        await tx
+          .delete(EmployeeForm)
+          .where(
+            and(
+              eq(EmployeeForm.formId, body.formularioId),
+              eq(EmployeeForm.employeeId, id)
+            )
+          );
+      }
+    });
+    return {
+      message: 'success',
+    };
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    body: t.Object({
+      formularioId: t.Number(),
+      employeesIds: t.Array(t.Number()),
+    }),
+    response: {
+      201: messageSchema,
+      400: messageSchema,
+      401: messageSchema,
+    },
+    detail: {
+      description: 'Dessignar Formulario a Empleados medieantes sus Ids',
     },
   }
 );

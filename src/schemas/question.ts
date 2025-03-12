@@ -40,3 +40,19 @@ export const QuestionWithAnswer = t.Composite([
     ),
   }),
 ]);
+export const QuestionWithAllAnswers = t.Composite([
+  QuestionSelSchema,
+  t.Object({
+    respuestas: t.Array(
+      t.Object({
+        id: t.Number(),
+        empleadoId: t.Nullable(t.Number()),
+        formularioId: t.Nullable(t.Number()),
+        preguntaId: t.Nullable(t.Number()),
+        respuesta: t.Nullable(t.Number()), // Usamos smallint para 0, 1, 2, 3
+        createdAt: t.Nullable(t.Date()),
+        updatedAt: t.Nullable(t.Date()),
+      })
+    ),
+  }),
+]);

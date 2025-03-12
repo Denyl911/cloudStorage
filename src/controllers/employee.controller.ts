@@ -11,7 +11,11 @@ import {
 import { messageSchema } from '../utils/utils';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
 import { Form, FormSchemaSelAssigned } from '../schemas/form';
-import { Question, QuestionWithAnswer } from '../schemas/question';
+import {
+  Question,
+  QuestionWithAllAnswers,
+  QuestionWithAnswer,
+} from '../schemas/question';
 import { Answer } from '../schemas/answer';
 
 const employeeRouter = new Elysia({
@@ -43,8 +47,8 @@ employeeRouter.get(
 );
 
 employeeRouter.get(
-  '/assigned-forms',
-  async ({ headers: { auth }, error }) => {
+  '/assigned-forms/:id',
+  async ({ headers: { auth }, params: { id }, error }) => {
     const user = await validateSessionToken(auth);
     if (!user) {
       return error(401, { message: 'No autorizado' });
@@ -62,12 +66,14 @@ employeeRouter.get(
         updatedAt: Form.updatedAt,
       })
       .from(EmployeeForm)
-      .leftJoin(Form, eq(EmployeeForm.formId, Form.id));
+      .leftJoin(Form, eq(EmployeeForm.formId, Form.id))
+      .where(eq(EmployeeForm.employeeId, id));
   },
   {
     headers: t.Object({
       auth: t.String(),
     }),
+    params: t.Object({ id: t.Integer() }),
     response: {
       200: t.Array(FormSchemaSelAssigned),
       401: messageSchema,
@@ -129,6 +135,72 @@ employeeRouter.get(
 );
 
 employeeRouter.get(
+  '/form-all-answers',
+  async ({ headers: { auth }, query: { formId }, error }) => {
+    // Validar user
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    // Obtener todas las preguntas del formulario
+    const questions = await db
+      .select({
+        id: Question.id,
+        formularioId: Question.formularioId,
+        pregunta: Question.pregunta,
+        dimension: Question.dimension,
+      })
+      .from(Question)
+      .where(eq(Question.formularioId, formId));
+
+    // Para cada pregunta, obtener todas las respuestas de todos los empleados
+    const questionsWithAnswers = await Promise.all(
+      questions.map(async (question) => {
+        const answers = await db
+          .select({
+            id: Answer.id,
+            empleadoId: Answer.empleadoId,
+            formularioId: Answer.formularioId,
+            preguntaId: Answer.preguntaId,
+            respuesta: Answer.respuesta,
+            createdAt: Answer.createdAt,
+            updatedAt: Answer.updatedAt,
+          })
+          .from(Answer)
+          .where(
+            and(
+              eq(Answer.formularioId, formId),
+              eq(Answer.preguntaId, question.id)
+            )
+          );
+
+        return {
+          ...question,
+          respuestas: answers,
+        };
+      })
+    );
+
+    return questionsWithAnswers;
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    query: t.Object({ formId: t.Number() }),
+    response: {
+      200: t.Array(QuestionWithAllAnswers),
+      401: messageSchema,
+      403: messageSchema,
+    },
+    detail: {
+      description:
+        'Obtener un formulario con todos las respuestas de cada pregunta',
+    },
+  }
+);
+
+employeeRouter.get(
   '/:id',
   async ({ headers: { auth }, params: { id }, error }) => {
     const isadmin = await itsAdmin(auth);
@@ -166,6 +238,9 @@ employeeRouter.post(
     }
     set.status = 201;
     await db.insert(Employee).values(body);
+    return {
+      message: 'success',
+    };
   },
   {
     headers: t.Object({
@@ -207,6 +282,87 @@ employeeRouter.put(
       200: messageSchema,
       401: messageSchema,
       403: messageSchema,
+    },
+  }
+);
+
+employeeRouter.post(
+  '/bulk',
+  async ({ headers: { auth }, body, set, error }) => {
+    const isadmin = await itsAdmin(auth);
+    if (!isadmin) {
+      return error(401, { message: 'No autorizado' });
+    }
+    set.status = 201;
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < body.length; i++) {
+        const el = body[i];
+        await tx.insert(Employee).values(el);
+      }
+    });
+    return {
+      message: 'success',
+    };
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    body: t.Array(EmployeeInSchema),
+    response: {
+      201: messageSchema,
+      401: messageSchema,
+    },
+    detail: {
+      description: 'Crear varias empleados',
+    },
+  }
+);
+
+employeeRouter.post(
+  '/bulk-from-csv',
+  async ({ headers: { auth }, body, set, error }) => {
+    const isadmin = await itsAdmin(auth);
+    if (!isadmin) {
+      return error(401, { message: 'No autorizado' });
+    }
+    set.status = 201;
+    const data = await body.csv.text();
+    const lines = data.split('\n');
+    const all = lines.filter((el) => el).map((line) => line.split(','));
+
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        await tx.insert(Employee).values({
+          nombre: el[0],
+          noEmpleado: el[1],
+          cargo: el[2],
+          puesto: el[3],
+          correo: el[4],
+          telefono: el[5],
+          extra1: el[6],
+        });
+      }
+    });
+    return {
+      message: 'success',
+    };
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    body: t.Object({
+      formId: t.Union([t.String(), t.Number()]),
+      csv: t.File(),
+    }),
+    response: {
+      201: messageSchema,
+      401: messageSchema,
+    },
+    detail: {
+      description: 'Crear varias empleados',
     },
   }
 );

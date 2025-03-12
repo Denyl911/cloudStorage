@@ -7,7 +7,7 @@ import {
 } from 'drizzle-typebox';
 import { t } from 'elysia';
 import timestamps from './columns.helpers';
-import { QuestionInSchema, QuestionSelSchema } from './question';
+import { QuestionSelSchema } from './question';
 
 export const Form = pgTable('forms', {
   id: serial('id').primaryKey(),
@@ -31,9 +31,14 @@ export const FormInSchema = createInsertSchema(Form, {
   logoGba: t.File(),
   logoCliente: t.File(),
 });
+
 export const FormInSchemaWithQuestions = t.Composite([
   FormInSchema,
-  t.Object({ preguntas: t.Array(QuestionInSchema) }),
+  t.Object({
+    preguntas: t.String({
+      pattern: '[{ "pregunta": "", "dimension": "" }]',
+    }),
+  }),
 ]);
 export const FormUpSchema = createUpdateSchema(Form, {
   logoGba: t.Nullable(t.File()),

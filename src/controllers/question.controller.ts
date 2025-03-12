@@ -6,9 +6,11 @@ import {
   QuestionInSchema,
   QuestionSelSchema,
   QuestionUpSchema,
+  QuestionWithAllAnswers,
 } from '../schemas/question';
 import { messageSchema } from '../utils/utils';
 import { itsAdmin } from '../utils/auth';
+import { Answer } from '../schemas/answer';
 
 const questionRouter = new Elysia({
   prefix: '/questions',
@@ -67,6 +69,36 @@ questionRouter.get(
   }
 );
 
+questionRouter.get(
+  'all-answers/:id',
+  async ({ headers: { auth }, params: { id }, error }) => {
+    const isadmin = await itsAdmin(auth);
+    if (!isadmin) {
+      return error(401, { message: 'No autorizado' });
+    }
+    const [data] = await db.select().from(Question).where(eq(Question.id, id));
+    const answers = await db
+      .select()
+      .from(Answer)
+      .where(eq(Answer.preguntaId, id));
+
+    return {
+      ...data,
+      respuestas: answers,
+    };
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ id: t.Integer() }),
+    response: {
+      200: QuestionWithAllAnswers,
+      401: messageSchema,
+    },
+  }
+);
+
 questionRouter.post(
   '/',
   async ({ headers: { auth }, body, set, error }) => {
@@ -76,6 +108,9 @@ questionRouter.post(
     }
     set.status = 201;
     await db.insert(Question).values(body);
+    return {
+      message: 'success',
+    };
   },
   {
     headers: t.Object({
@@ -103,6 +138,9 @@ questionRouter.post(
         await tx.insert(Question).values(el);
       }
     });
+    return {
+      message: 'success',
+    };
   },
   {
     headers: t.Object({
