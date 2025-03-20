@@ -156,7 +156,9 @@ userRouter.put(
       });
     }
     let img: string | undefined;
-    delete body.password;
+    if (body.password) {
+      body.password = await Bun.password.hash(body.password);
+    }
     if (body.image) {
       const image: File = body.image;
       img = `public/img/${Date.now()}${path.extname(image.name)}`;
