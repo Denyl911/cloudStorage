@@ -69,11 +69,7 @@ answerRouter.get(
 
 answerRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set, error }) => {
     set.status = 201;
     await db.insert(Answer).values(body);
     return {
@@ -81,9 +77,6 @@ answerRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
     body: AnswerInSchema,
     response: {
       201: messageSchema,
@@ -94,11 +87,7 @@ answerRouter.post(
 
 answerRouter.post(
   '/bulk',
-  async ({ headers: { auth }, body, set, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set, error }) => {
     set.status = 201;
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.length; i++) {
@@ -111,9 +100,6 @@ answerRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
     body: t.Array(AnswerInSchema),
     response: {
       201: messageSchema,

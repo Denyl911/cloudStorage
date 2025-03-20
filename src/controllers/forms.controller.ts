@@ -47,11 +47,7 @@ formRouter.get(
 );
 formRouter.get(
   '/with-questions/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     const [data] = await db.select().from(Form).where(eq(Form.id, id));
     const preguntas = await db
       .select()
@@ -69,9 +65,6 @@ formRouter.get(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
     params: t.Object({ id: t.Integer() }),
     response: {
       200: FormSelSchemaWithQuestions,
