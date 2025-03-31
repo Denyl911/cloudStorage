@@ -7,6 +7,7 @@ import {
 } from 'drizzle-typebox';
 import timestamps from './columns.helpers';
 import { Form } from './form';
+import { t } from 'elysia';
 
 export const Employee = pgTable('employees', {
   id: serial('id').primaryKey(),
@@ -36,3 +37,13 @@ export type EmployeeTypeIn = InferInsertModel<typeof Employee>;
 export const EmployeeSelSchema = createSelectSchema(Employee);
 export const EmployeeInSchema = createInsertSchema(Employee);
 export const EmployeeUpSchema = createUpdateSchema(Employee);
+export const EmployeesAsignedSchema = t.Object({
+  id: t.Nullable(t.Integer()),
+  nombre: t.Nullable(t.String()),
+  noEmpleado: t.Nullable(t.String()),
+  cargo: t.Nullable(t.String()),
+  puesto: t.Nullable(t.String()),
+  correo: t.Nullable(t.String()),
+  telefono: t.Nullable(t.String()),
+  extra1: t.Nullable(t.String()),
+})

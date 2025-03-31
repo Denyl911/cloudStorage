@@ -15,7 +15,7 @@ import {
 import { messageSchema } from '../utils/utils';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
 import { Question, QuestionWithAllAnswers } from '../schemas/question';
-import { EmployeeForm } from '../schemas/employee';
+import { Employee, EmployeeForm, EmployeesAsignedSchema } from '../schemas/employee';
 import { Answer } from '../schemas/answer';
 
 const formRouter = new Elysia({
@@ -77,48 +77,43 @@ formRouter.get(
   }
 );
 
-// formRouter.get(
-//   '/reply/:hash',
-//   async ({ headers: { auth }, params: { hash }, error }) => {
-//     const isadmin = await itsAdmin(auth);
-//     if (!isadmin) {
-//       return error(401, { message: 'No autorizado' });
-//     }
-//     const [data] = await db
-//       .select()
-//       .from(Form)
-//       .where(eq(Form.linkFormulario, `/forms/reply/${hash}`));
-//     const preguntas = await db
-//       .select()
-//       .from(Question)
-//       .where(eq(Question.formularioId, data.id));
+formRouter.get(
+  '/reply/:hash',
+  async ({ params: { hash }, error }) => {
+    const [data] = await db
+      .select()
+      .from(Form)
+      .where(
+        eq(Form.linkFormulario, `https://api.gbalatam.com/forms/reply/${hash}`)
+      );
+    const preguntas = await db
+      .select()
+      .from(Question)
+      .where(eq(Question.formularioId, data.id));
 
-//     if (!data) {
-//       return error(404, {
-//         message: 'Not found',
-//       });
-//     }
-//     return {
-//       ...data,
-//       preguntas: preguntas,
-//     };
-//   },
-//   {
-//     headers: t.Object({
-//       auth: t.String(),
-//     }),
-//     params: t.Object({ hash: t.String() }),
-//     response: {
-//       200: FormSelSchemaWithQuestions,
-//       404: messageSchema,
-//       401: messageSchema,
-//     },
-//     detail: {
-//       description:
-//         'Obtener formulario con preguntas mediante el "linkFormulario"',
-//     },
-//   }
-// );
+    if (!data) {
+      return error(404, {
+        message: 'Not found',
+      });
+    }
+    return {
+      ...data,
+      preguntas: preguntas,
+    };
+  },
+  {
+    params: t.Object({ hash: t.String() }),
+    response: {
+      200: FormSelSchemaWithQuestions,
+      404: messageSchema,
+      401: messageSchema,
+    },
+    detail: {
+      description:
+        'Obtener formulario con preguntas mediante el "linkFormulario"',
+    },
+  }
+);
 
 formRouter.get(
   '/:id',
@@ -166,9 +161,9 @@ formRouter.post(
       const image2: File = body.logoCliente;
       const route2 = `public/img/${Date.now()}${path.extname(image2.name)}`;
       await Bun.write(route2, body.logoCliente);
-      // const uid = randomUUIDv7();
-      // const linkFormulario = `/forms/reply/${uid}`;
-      data = { ...body, logoGba: route1, logoCliente: route2 };
+      const uid = randomUUIDv7();
+      const linkFormulario = `https://api.gbalatam.com/forms/reply/${uid}`;
+      data = { ...body, logoGba: route1, logoCliente: route2, linkFormulario };
       await db.insert(Form).values(data);
       return {
         message: 'success',
@@ -209,9 +204,9 @@ formRouter.post(
     const image2: File = body.logoCliente;
     const route2 = `public/img/${Date.now()}${path.extname(image2.name)}`;
     await Bun.write(route2, body.logoCliente);
-    // const uid = randomUUIDv7();
-    // const linkFormulario = `/forms/reply/${uid}`;
-    data = { ...body, logoGba: route1, logoCliente: route2 };
+    const uid = randomUUIDv7();
+    const linkFormulario = `https://api.gbalatam.com/forms/reply/${uid}`;
+    data = { ...body, logoGba: route1, logoCliente: route2, linkFormulario };
     await db.transaction(async (tx) => {
       const [form] = await tx
         .insert(Form)
@@ -457,6 +452,46 @@ formRouter.post(
     },
     detail: {
       description: 'Desasignar Formulario a Empleados medieantes sus Ids',
+    },
+  }
+);
+
+formRouter.get(
+  '/assigned-users/:id',
+  async ({ headers: { auth }, params: { id }, error }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+    return await db
+      .select({
+        id: Employee.id,
+        nombre: Employee.nombre,
+        noEmpleado: Employee.noEmpleado,
+        cargo: Employee.cargo,
+        puesto: Employee.puesto,
+        correo: Employee.correo,
+        telefono: Employee.telefono,
+        extra1: Employee.extra1,
+        createdAt: Employee.createdAt,
+        updatedAt: Employee.updatedAt,
+      })
+      .from(EmployeeForm)
+      .leftJoin(Employee, eq(EmployeeForm.employeeId, Employee.id))
+      .where(eq(EmployeeForm.formId, id));
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ id: t.Integer() }),
+    response: {
+      200: t.Array(EmployeesAsignedSchema),
+      401: messageSchema,
+      403: messageSchema,
+    },
+    detail: {
+      description: 'Obtener los empleados asignados a un formulario',
     },
   }
 );

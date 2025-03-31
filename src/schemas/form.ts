@@ -16,7 +16,7 @@ export const Form = pgTable('forms', {
   nombre: varchar('nombre').notNull(),
   titulo: varchar('titulo').notNull(),
   descripcion: text('descripcion').notNull(),
-  linkFormulario: varchar('link_formulario').notNull(),
+  linkFormulario: varchar('link_formulario'),
   ...timestamps,
 });
 
