@@ -1,5 +1,11 @@
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import { integer, pgTable, primaryKey, serial, varchar } from 'drizzle-orm/pg-core';
+import {
+  integer,
+  pgTable,
+  primaryKey,
+  serial,
+  varchar,
+} from 'drizzle-orm/pg-core';
 import {
   createInsertSchema,
   createSelectSchema,
@@ -36,6 +42,10 @@ export type EmployeeType = InferSelectModel<typeof Employee>;
 export type EmployeeTypeIn = InferInsertModel<typeof Employee>;
 export const EmployeeSelSchema = createSelectSchema(Employee);
 export const EmployeeInSchema = createInsertSchema(Employee);
+export const EmployeeInWithFormIdSchema = t.Composite([
+  EmployeeInSchema,
+  t.Object({ formId: t.Optional(t.Integer()) }),
+]);
 export const EmployeeUpSchema = createUpdateSchema(Employee);
 export const EmployeesAsignedSchema = t.Object({
   id: t.Nullable(t.Integer()),
@@ -46,4 +56,4 @@ export const EmployeesAsignedSchema = t.Object({
   correo: t.Nullable(t.String()),
   telefono: t.Nullable(t.String()),
   extra1: t.Nullable(t.String()),
-})
+});

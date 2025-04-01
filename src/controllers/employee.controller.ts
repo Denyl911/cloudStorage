@@ -5,6 +5,7 @@ import {
   Employee,
   EmployeeForm,
   EmployeeInSchema,
+  EmployeeInWithFormIdSchema,
   EmployeeSelSchema,
   EmployeeUpSchema,
 } from '../schemas/employee';
@@ -134,6 +135,31 @@ employeeRouter.get(
 );
 
 employeeRouter.get(
+  '/by-email/:email',
+  async ({ params: { email }, error }) => {
+    const data = await db
+      .select()
+      .from(Employee)
+      .where(eq(Employee.correo, email));
+    if (data.length < 1) {
+      return error(404, {
+        message: 'Not found',
+      });
+    }
+    return data[0];
+  },
+  {
+    params: t.Object({ email: t.String() }),
+    response: {
+      200: EmployeeSelSchema,
+      404: messageSchema,
+      401: messageSchema,
+      403: messageSchema,
+    },
+  }
+);
+
+employeeRouter.get(
   '/:id',
   async ({ headers: { auth }, params: { id }, error }) => {
     const isadmin = await itsAdmin(auth);
@@ -170,6 +196,17 @@ employeeRouter.post(
       return error(401, { message: 'No autorizado' });
     }
     set.status = 201;
+    await db.transaction(async (tx) => {
+      const [empleado] = await tx
+        .insert(Employee)
+        .values(body)
+        .returning({ id: Employee.id });
+      if (body.formId) {
+        await tx
+          .insert(EmployeeForm)
+          .values({ employeeId: empleado.id, formId: body.formId });
+      }
+    });
     await db.insert(Employee).values(body);
     return {
       message: 'success',
@@ -179,7 +216,7 @@ employeeRouter.post(
     headers: t.Object({
       auth: t.String(),
     }),
-    body: EmployeeInSchema,
+    body: EmployeeInWithFormIdSchema,
     response: {
       201: messageSchema,
       401: messageSchema,
@@ -230,7 +267,15 @@ employeeRouter.post(
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.length; i++) {
         const el = body[i];
-        await tx.insert(Employee).values(el);
+        const [empleado] = await tx
+          .insert(Employee)
+          .values(el)
+          .returning({ id: Employee.id });
+        if (el.formId) {
+          await tx
+            .insert(EmployeeForm)
+            .values({ employeeId: empleado.id, formId: el.formId });
+        }
       }
     });
     return {
@@ -241,7 +286,7 @@ employeeRouter.post(
     headers: t.Object({
       auth: t.String(),
     }),
-    body: t.Array(EmployeeInSchema),
+    body: t.Array(EmployeeInWithFormIdSchema),
     response: {
       201: messageSchema,
       401: messageSchema,
@@ -267,15 +312,21 @@ employeeRouter.post(
     await db.transaction(async (tx) => {
       for (let i = 0; i < all.length; i++) {
         const el = all[i];
-        await tx.insert(Employee).values({
-          nombre: el[0],
-          noEmpleado: el[1],
-          cargo: el[2],
-          puesto: el[3],
-          correo: el[4],
-          telefono: el[5],
-          extra1: el[6] || undefined,
-        });
+        const [empleado] = await tx
+          .insert(Employee)
+          .values({
+            nombre: el[0],
+            noEmpleado: el[1],
+            cargo: el[2],
+            puesto: el[3],
+            correo: el[4],
+            telefono: el[5],
+            extra1: el[6] || undefined,
+          })
+          .returning({ id: Employee.id });
+        await tx
+          .insert(EmployeeForm)
+          .values({ employeeId: empleado.id, formId: Number(body.formId) });
       }
     });
     return {
