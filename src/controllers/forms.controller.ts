@@ -239,7 +239,7 @@ formRouter.post(
 );
 
 formRouter.get(
-  '/all-answers/:id',
+  '/all-answers/:formId',
   async ({ headers: { auth }, params: { formId }, error }) => {
     // Validar user
     const user = await validateSessionToken(auth);
