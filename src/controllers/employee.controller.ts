@@ -312,21 +312,26 @@ employeeRouter.post(
     await db.transaction(async (tx) => {
       for (let i = 0; i < all.length; i++) {
         const el = all[i];
-        const [empleado] = await tx
-          .insert(Employee)
-          .values({
-            nombre: el[0],
-            noEmpleado: el[1],
-            cargo: el[2],
-            puesto: el[3],
-            correo: el[4],
-            telefono: el[5],
-            extra1: el[6] || undefined,
-          })
-          .returning({ id: Employee.id });
-        await tx
-          .insert(EmployeeForm)
-          .values({ employeeId: empleado.id, formId: Number(body.formId) });
+        if (isNaN(Number(el[0]))) {
+          continue;
+        }
+        if (el[0] && el[1] && el[2] && el[3] && el[4] && el[5]) {
+          const [empleado] = await tx
+            .insert(Employee)
+            .values({
+              nombre: el[1],
+              noEmpleado: el[2],
+              cargo: el[3],
+              puesto: el[4],
+              correo: el[5],
+              telefono: el[6],
+              extra1: el[7] || undefined,
+            })
+            .returning({ id: Employee.id });
+          await tx
+            .insert(EmployeeForm)
+            .values({ employeeId: empleado.id, formId: Number(el[0]) });
+        }
       }
     });
     return {
@@ -338,8 +343,11 @@ employeeRouter.post(
       auth: t.String(),
     }),
     body: t.Object({
-      formId: t.Union([t.String(), t.Number()]),
-      csv: t.File(),
+      csv: t.File({
+        examples: [
+          'IdFormulario,Nombre,NoEmpleado,Cargo,Puesto,Correo,Telefono,Extra',
+        ],
+      }),
     }),
     response: {
       201: messageSchema,
