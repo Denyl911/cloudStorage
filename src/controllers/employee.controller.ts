@@ -207,7 +207,7 @@ employeeRouter.post(
           .values({ employeeId: empleado.id, formId: body.formId });
       }
     });
-    await db.insert(Employee).values(body);
+    // await db.insert(Employee).values(body);
     return {
       message: 'success',
     };
