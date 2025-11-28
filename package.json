@@ -12,6 +12,7 @@
     "drizzle-orm": "^0.39.3",
     "drizzle-typebox": "^0.3.0",
     "elysia": "latest",
+    "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
     "logestic": "^1.2.4",
     "postgres": "^3.4.5"

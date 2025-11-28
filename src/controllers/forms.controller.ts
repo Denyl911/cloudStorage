@@ -1,7 +1,8 @@
 import { Elysia, t } from 'elysia';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { randomUUIDv7 } from 'bun';
 import path from 'path';
+import ExcelJS from 'exceljs';
 import db from '../config/db.config';
 import {
   Form,
@@ -15,7 +16,11 @@ import {
 import { messageSchema } from '../utils/utils';
 import { itsAdmin, validateSessionToken } from '../utils/auth';
 import { Question, QuestionWithAllAnswers } from '../schemas/question';
-import { Employee, EmployeeForm, EmployeesAsignedSchema } from '../schemas/employee';
+import {
+  Employee,
+  EmployeeForm,
+  EmployeesAsignedSchema,
+} from '../schemas/employee';
 import { Answer } from '../schemas/answer';
 
 const formRouter = new Elysia({
@@ -300,6 +305,141 @@ formRouter.get(
     detail: {
       description:
         'Obtener las preguntas de un formulario con todas las respuestas por pregunta',
+    },
+  }
+);
+
+formRouter.get(
+  '/excel/:formId',
+  async ({ headers: { auth }, params: { formId }, error, set }) => {
+    const user = await validateSessionToken(auth);
+    if (!user) {
+      return error(401, { message: 'No autorizado' });
+    }
+
+    // Obtener todas las preguntas del formulario
+    const questions = await db
+      .select({
+        id: Question.id,
+        pregunta: Question.pregunta, // Solo necesitamos el texto de la pregunta
+      })
+      .from(Question)
+      .where(eq(Question.formularioId, formId));
+
+    // Obtener todas las respuestas para este formulario
+    const answers = await db
+      .select({
+        empleadoId: Answer.empleadoId,
+        preguntaId: Answer.preguntaId,
+        respuesta: Answer.respuesta,
+      })
+      .from(Answer)
+      .where(eq(Answer.formularioId, formId));
+
+    // Obtener la información de todos los empleados que respondieron
+    const employeeIds = [...new Set(answers.map((a) => a.empleadoId))];
+    const employees = await db
+      .select({
+        id: Employee.id,
+        nombre_empleado: Employee.nombre, // Ajusta los nombres de columna de tu modelo Employee
+        cargo: Employee.cargo,
+        puesto: Employee.puesto,
+        correo: Employee.correo,
+      })
+      .from(Employee)
+      .where(inArray(Employee.id, employeeIds)); // Asumo que inArray está disponible o usas un equivalente
+
+    // --- 2. Reestructurar Datos en Filas ---
+
+    type QuestionAnswers = {
+      [preguntaId: number]: number;
+    };
+    type EmployeeAnswersMap = {
+      [empleadoId: number]: QuestionAnswers;
+    };
+    // Mapeo de Respuestas por EmpleadoId
+    const employeeAnswersMap = answers.reduce((acc, a) => {
+      if (!acc[a.empleadoId]) {
+        acc[a.empleadoId] = {};
+      }
+      acc[a.empleadoId][a.preguntaId] = a.respuesta;
+      return acc;
+    }, {} as EmployeeAnswersMap);
+
+    // Generar las filas de datos
+    const dataRows = employees.map((employee) => {
+      const row = [
+        employee.id,
+        employee.nombre_empleado,
+        employee.cargo,
+        employee.puesto,
+        employee.correo,
+      ];
+
+      // Añadir respuestas en el orden de las preguntas
+      questions.forEach((question) => {
+        const respuesta = employeeAnswersMap[employee.id]?.[question.id];
+        row.push(respuesta);
+      });
+
+      return row;
+    });
+
+    // --- 3. Preparar Columnas y Generar XLSX ---
+
+    // Cabeceras fijas
+    const fixedHeaders = [
+      'id_empleado',
+      'nombre_empleado',
+      'cargo',
+      'puesto',
+      'email',
+    ];
+
+    // Cabeceras dinámicas (las preguntas)
+    const questionHeaders = questions.map((q) => q.pregunta);
+
+    // Columnas completas para ExcelJS
+    const columns = [...fixedHeaders, ...questionHeaders].map((header) => ({
+      header: header,
+      key: header,
+      width: header.length < 20 ? 20 : header.length + 5,
+    }));
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Respuestas del Formulario');
+
+    // Añadir columnas y filas
+    worksheet.columns = columns;
+    worksheet.addRows(dataRows);
+
+    // --- 4. Enviar la Respuesta ---
+
+    // Escribir el libro de trabajo en un buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    // Establecer las cabeceras de respuesta para la descarga
+    set.headers['Content-Type'] =
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    set.headers[
+      'Content-Disposition'
+    ] = `attachment; filename=respuestas_formulario_${formId}.xlsx`;
+
+    // Devolver el buffer
+    return buffer;
+  },
+  {
+    headers: t.Object({
+      auth: t.String(),
+    }),
+    params: t.Object({ formId: t.Integer() }),
+    response: {
+      200: t.Any(),
+      401: messageSchema,
+      403: messageSchema,
+    },
+    detail: {
+      description: 'Obtener las respuestas de un formulario en formato XLSX',
     },
   }
 );
