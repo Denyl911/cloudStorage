@@ -1,7 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { and, eq } from 'drizzle-orm';
 import path from 'path';
-import { mkdir } from 'node:fs/promises';
 import db from '../config/db.config';
 import {
   Project,
@@ -10,8 +9,8 @@ import {
   ProjectTypeIn,
   ProjectUpSchema,
 } from '../schemas/project';
-import { messageSchema } from '../utils/utils';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { authMacros } from '../utils/auth.macro';
 import {
   ContactProject,
   ContactProjectInSchema,
@@ -23,21 +22,16 @@ const projectRouter = new Elysia({
   detail: {
     tags: ['Projects'],
   },
-});
+}).use(authMacros);
 
 projectRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Project);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(ProjectSelSchema),
       401: messageSchema,
@@ -48,11 +42,7 @@ projectRouter.get(
 
 projectRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const owns = await db
       .select({ id: Project.id, userId: Project.userId })
       .from(Project)
@@ -87,9 +77,8 @@ projectRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: t.Object({
@@ -105,11 +94,7 @@ projectRouter.get(
 
 projectRouter.get(
   '/user',
-  async ({ headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user }) => {
     const data = await db
       .select({ project: Project, folder: Folder })
       .from(Project)
@@ -118,9 +103,8 @@ projectRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     response: {
       200: t.Union([
         t.Object({
@@ -138,11 +122,7 @@ projectRouter.get(
 
 projectRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set, error }) => {
     set.status = 201;
     let imageRoute: string | undefined;
     if (body.img) {
@@ -170,9 +150,8 @@ projectRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: ProjectInSchema,
     response: {
       201: messageSchema,
@@ -185,11 +164,7 @@ projectRouter.post(
 
 projectRouter.put(
   '/:id',
-  async ({ headers: { auth }, body, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, body, params: { id }, error }) => {
     const owns = await db
       .select({ id: Project.id, userId: Project.userId })
       .from(Project)
@@ -216,9 +191,8 @@ projectRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: ProjectUpSchema,
     params: t.Object({ id: t.Integer() }),
     response: {
@@ -235,11 +209,7 @@ projectRouter.put(
 
 projectRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const owns = await db
       .select({ id: Project.id, userId: Project.userId })
       .from(Project)
@@ -260,9 +230,8 @@ projectRouter.delete(
     return { message: 'Project deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
@@ -275,11 +244,7 @@ projectRouter.delete(
 
 projectRouter.post(
   '/share',
-  async ({ body, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, user, error }) => {
     const owns = await db
       .select({ id: Project.id, userId: Project.userId })
       .from(Project)
@@ -293,9 +258,8 @@ projectRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: ContactProjectInSchema,
     response: {
       200: messageSchema,
@@ -310,11 +274,7 @@ projectRouter.post(
 
 projectRouter.post(
   '/unshare',
-  async ({ body, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, user, error }) => {
     const owns = await db
       .select({ id: Project.id, userId: Project.userId })
       .from(Project)
@@ -335,9 +295,8 @@ projectRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: ContactProjectInSchema,
     response: {
       200: messageSchema,

@@ -7,29 +7,24 @@ import {
   AnswerSelSchema,
   AnswerUpSchema,
 } from '../schemas/answer';
-import { messageSchema } from '../utils/utils';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { authMacros } from '../utils/auth.macro';
 
 const answerRouter = new Elysia({
   prefix: '/answers',
   detail: {
     tags: ['Answers'],
   },
-});
+}).use(authMacros);
 
 answerRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Answer);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(AnswerSelSchema),
       401: messageSchema,
@@ -40,11 +35,7 @@ answerRouter.get(
 
 answerRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     const data = await db.select().from(Answer).where(eq(Answer.id, id));
     if (data.length < 1) {
       return error(404, {
@@ -54,9 +45,8 @@ answerRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: AnswerSelSchema,
@@ -69,7 +59,7 @@ answerRouter.get(
 
 answerRouter.post(
   '/',
-  async ({ body, set, error }) => {
+  async ({ body, set }) => {
     set.status = 201;
     await db.insert(Answer).values(body);
     return {
@@ -87,7 +77,7 @@ answerRouter.post(
 
 answerRouter.post(
   '/bulk',
-  async ({ body, set, error }) => {
+  async ({ body, set }) => {
     set.status = 201;
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.length; i++) {
@@ -114,11 +104,7 @@ answerRouter.post(
 
 answerRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, params: { id } }) => {
     await db
       .update(Answer)
       .set({
@@ -131,9 +117,8 @@ answerRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     body: AnswerUpSchema,
     response: {
@@ -146,19 +131,13 @@ answerRouter.put(
 
 answerRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
-
+  async ({ params: { id } }) => {
     await db.delete(Answer).where(eq(Answer.id, id));
     return { message: 'Answer deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,

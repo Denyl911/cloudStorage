@@ -9,8 +9,8 @@ import {
   ClientTypeIn,
   ClientUpSchema,
 } from '../schemas/client';
-import { messageSchema } from '../utils/utils';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { authMacros } from '../utils/auth.macro';
 import { ClientContact } from '../schemas/clients_contacts';
 import { ClientContactSel, User } from '../schemas/user';
 import { Project, ProjectSelSchema } from '../schemas/project';
@@ -18,37 +18,29 @@ import { Project, ProjectSelSchema } from '../schemas/project';
 const clientRouter = new Elysia({
   prefix: '/clients',
   detail: {
-    tags: ['Clilentes'],
+    tags: ['Clientes'],
   },
-});
+}).use(authMacros);
 
 clientRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Client);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(ClientSelSchema),
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 clientRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     // Revisar tabla clients_contacts
     // if (id !== user.id && user.rol !== 'Admin') {
     //   return error(403, {
@@ -64,9 +56,8 @@ clientRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: ClientSelSchema,
@@ -79,11 +70,7 @@ clientRouter.get(
 
 clientRouter.get(
   '/contacts/:idClient',
-  async ({ headers: { auth }, params: { idClient }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { idClient } }) => {
     // Revisar tabla clients_contacts
     // if (id !== user.id && user.rol !== 'Admin') {
     //   return error(403, {
@@ -108,9 +95,8 @@ clientRouter.get(
     return data;
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ idClient: t.Integer() }),
     response: {
       200: t.Array(ClientContactSel),
@@ -125,11 +111,7 @@ clientRouter.get(
 
 clientRouter.get(
   '/projects/:idClient',
-  async ({ headers: { auth }, params: { idClient }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { idClient } }) => {
     const data = await db
       .select()
       .from(Project)
@@ -138,9 +120,8 @@ clientRouter.get(
     return data;
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ idClient: t.Integer() }),
     response: {
       200: t.Array(ProjectSelSchema),
@@ -180,11 +161,7 @@ clientRouter.post(
 
 clientRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, params: { id } }) => {
     // if (id !== user.id && user.rol !== 'Admin') {
     //   return error(403, {
     //     message: 'No tiene permisos',
@@ -220,11 +197,7 @@ clientRouter.put(
 
 clientRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -243,9 +216,8 @@ clientRouter.delete(
     return { message: 'Client deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,

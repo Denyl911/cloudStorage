@@ -2,9 +2,9 @@ import { Elysia, t, file } from 'elysia';
 import { and, eq, isNull } from 'drizzle-orm';
 import JSZip from 'jszip';
 import db from '../config/db.config';
-import { messageSchema } from '../utils/utils';
+import { authHeaders, messageSchema } from '../utils/utils';
 import { File, FileSelSchema } from '../schemas/file';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authMacros } from '../utils/auth.macro';
 import {
   SharedFile,
   SharedFolder,
@@ -22,7 +22,7 @@ const folderRouter = new Elysia({
   detail: {
     tags: ['Folders'],
   },
-});
+}).use(authMacros);
 
 const allContentSchema = t.Object({
   id: t.Integer(),
@@ -45,31 +45,23 @@ const sharedContentSchema = t.Object({
 
 folderRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Folder);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(FolderSelSchema),
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 folderRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
@@ -93,9 +85,8 @@ folderRouter.get(
     return { id, folders, files };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: allContentSchema,
@@ -110,11 +101,7 @@ folderRouter.get(
 
 folderRouter.get(
   '/user-root/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     const parent = await db
       .select()
       .from(Folder)
@@ -141,9 +128,8 @@ folderRouter.get(
     return { id: parent[0].id, folders, files };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: allContentSchema,
@@ -160,11 +146,7 @@ folderRouter.get(
 
 folderRouter.get(
   '/root',
-  async ({ headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, error }) => {
     const parent = await db
       .select()
       .from(Folder)
@@ -191,14 +173,13 @@ folderRouter.get(
     return { id: parent[0].id, folders, files };
   },
   {
+    user: true,
+    headers: authHeaders,
     response: {
       200: allContentSchema,
       404: messageSchema,
       401: messageSchema,
     },
-    headers: t.Object({
-      auth: t.String(),
-    }),
     detail: {
       description:
         'Obtener el contenido (Archivos y carpetas) de la carpeta padre (root) del usuario mediante el header de autenticacion',
@@ -208,13 +189,9 @@ folderRouter.get(
 
 folderRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
+  async ({ user, body, set, error }) => {
     if (!body.parentFolderId) {
       return error(400, { message: 'Proporciona un parentFolderId' });
-    }
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
     }
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
@@ -273,9 +250,8 @@ folderRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: FolderInSchema,
     response: {
       201: messageSchema,
@@ -288,11 +264,7 @@ folderRouter.post(
 
 folderRouter.put(
   '/:id',
-  async ({ headers: { auth }, body, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, body, params: { id }, error }) => {
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
@@ -309,9 +281,8 @@ folderRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: FolderUpSchema,
     params: t.Object({ id: t.Integer() }),
     response: {
@@ -324,11 +295,7 @@ folderRouter.put(
 
 folderRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const data = await db
       .select({ id: Folder.id })
       .from(Folder)
@@ -356,9 +323,8 @@ folderRouter.delete(
     return { message: 'Folder deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
@@ -371,11 +337,7 @@ folderRouter.delete(
 
 folderRouter.get(
   '/shared',
-  async ({ headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user }) => {
     const folders = await db
       .select({ id: Folder.id, name: Folder.name })
       .from(SharedFolder)
@@ -392,9 +354,8 @@ folderRouter.get(
     return { folders, files };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     response: {
       200: sharedContentSchema,
       401: messageSchema,
@@ -407,11 +368,7 @@ folderRouter.get(
 
 folderRouter.post(
   '/share',
-  async ({ body, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, user, error }) => {
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
@@ -426,9 +383,8 @@ folderRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: SharedFolderInSchema,
     response: {
       200: messageSchema,
@@ -443,11 +399,7 @@ folderRouter.post(
 
 folderRouter.post(
   '/unshare',
-  async ({ body, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, user, error }) => {
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
@@ -469,9 +421,8 @@ folderRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: SharedFolderInSchema,
     response: {
       200: messageSchema,
@@ -486,11 +437,7 @@ folderRouter.post(
 
 folderRouter.get(
   '/user-shared/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id } }) => {
     const folders = await db
       .select({ id: Folder.id, name: Folder.name })
       .from(SharedFolder)
@@ -505,13 +452,13 @@ folderRouter.get(
     return { folders, files };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: sharedContentSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description:
@@ -522,11 +469,7 @@ folderRouter.get(
 
 folderRouter.get(
   '/download/:id',
-  async ({ params: { id }, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const parent = await db
       .select()
       .from(Folder)
@@ -560,9 +503,8 @@ folderRouter.get(
   },
   {
     params: t.Object({ id: t.Integer() }),
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     detail: {
       description:
         'Descargar el contenido (Archivos y carpetas) en un .zip de la carpeta indicada',

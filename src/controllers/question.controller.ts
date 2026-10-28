@@ -8,8 +8,8 @@ import {
   QuestionUpSchema,
   QuestionWithAllAnswers,
 } from '../schemas/question';
-import { messageSchema } from '../utils/utils';
-import { itsAdmin } from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { authMacros } from '../utils/auth.macro';
 import { Answer } from '../schemas/answer';
 
 const questionRouter = new Elysia({
@@ -17,21 +17,16 @@ const questionRouter = new Elysia({
   detail: {
     tags: ['Questions'],
   },
-});
+}).use(authMacros);
 
 questionRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Question);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(QuestionSelSchema),
       401: messageSchema,
@@ -42,11 +37,7 @@ questionRouter.get(
 
 questionRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     const data = await db.select().from(Question).where(eq(Question.id, id));
     if (data.length < 1) {
       return error(404, {
@@ -56,9 +47,8 @@ questionRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: QuestionSelSchema,
@@ -71,11 +61,7 @@ questionRouter.get(
 
 questionRouter.get(
   'all-answers/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id } }) => {
     const [data] = await db.select().from(Question).where(eq(Question.id, id));
     const answers = await db
       .select()
@@ -88,13 +74,13 @@ questionRouter.get(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: QuestionWithAllAnswers,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Obtener todas las respuestas de esa pregunta',
@@ -104,11 +90,7 @@ questionRouter.get(
 
 questionRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set }) => {
     set.status = 201;
     await db.insert(Question).values(body);
     return {
@@ -116,24 +98,20 @@ questionRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: QuestionInSchema,
     response: {
       201: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 questionRouter.post(
   '/bulk',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set }) => {
     set.status = 201;
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.length; i++) {
@@ -146,13 +124,13 @@ questionRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: t.Array(QuestionInSchema),
     response: {
       201: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Crear varias preguntas',
@@ -162,20 +140,15 @@ questionRouter.post(
 
 questionRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, params: { id } }) => {
     await db.update(Question).set(body).where(eq(Question.id, id));
     return {
       message: 'success',
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     body: QuestionUpSchema,
     response: {
@@ -188,19 +161,13 @@ questionRouter.put(
 
 questionRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
-
+  async ({ params: { id } }) => {
     await db.delete(Question).where(eq(Question.id, id));
     return { message: 'Question deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,

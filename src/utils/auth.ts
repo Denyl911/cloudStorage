@@ -3,7 +3,16 @@ import db from '../config/db.config';
 import { Session, SessionType } from '../schemas/session';
 import { User, UserType } from '../schemas/user';
 import { eq } from 'drizzle-orm';
+import {
+  DAY_MS,
+  SESSION_RENEW_THRESHOLD_DAYS,
+  SESSION_TTL_DAYS,
+} from '../config/session.config';
 
+/**
+ * Crea una nueva sesión para un usuario.
+ * El token (UUIDv7) se devuelve en texto plano y se guarda hasheado con SHA-256.
+ */
 export async function createSession(userId: number): Promise<SessionType> {
   const token = randomUUIDv7();
   const hasher = new Bun.CryptoHasher('sha256');
@@ -12,12 +21,17 @@ export async function createSession(userId: number): Promise<SessionType> {
   const session: SessionType = {
     id: sessionId,
     userId,
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    expiresAt: new Date(Date.now() + SESSION_TTL_DAYS * DAY_MS),
   };
   await db.insert(Session).values(session);
   return session;
 }
 
+/**
+ * Valida el token de sesión y devuelve el usuario dueño.
+ * Devuelve `null` si la sesión no existe o expiró (y la elimina),
+ * y renueva la expiración si está dentro de la ventana de renovación.
+ */
 export async function validateSessionToken(
   token: string
 ): Promise<UserType | null> {
@@ -34,8 +48,11 @@ export async function validateSessionToken(
     await db.delete(Session).where(eq(Session.id, session.id));
     return null;
   }
-  if (Date.now() >= session.expiresAt.getTime() - 1000 * 60 * 60 * 24 * 15) {
-    session.expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
+  if (
+    Date.now() >=
+    session.expiresAt.getTime() - SESSION_RENEW_THRESHOLD_DAYS * DAY_MS
+  ) {
+    session.expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * DAY_MS);
     await db
       .update(Session)
       .set({
@@ -46,25 +63,12 @@ export async function validateSessionToken(
   return user;
 }
 
+/** Invalida (elimina) una sesión por id. */
 export async function invalidateSession(sessionId: string): Promise<void> {
   await db.delete(Session).where(eq(Session.id, sessionId));
 }
 
+/** Invalida todas las sesiones de un usuario. */
 export async function invalidateAllSessions(userId: number): Promise<void> {
   await db.delete(Session).where(eq(Session.userId, userId));
 }
-
-export async function itsAdmin(auth: string): Promise<Boolean> {
-  const user = await validateSessionToken(auth);
-  if (!user) {
-    return false;
-  }
-  if (user.rol !== 'Admin') {
-    return false;
-  }
-  return true;
-}
-
-export type SessionValidationResult =
-  | { session: SessionType; user: UserType }
-  | { session: null; user: null };

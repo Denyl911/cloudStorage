@@ -10,14 +10,13 @@ import {
   UserTypeIn,
   UserUpSchema,
 } from '../schemas/user';
-import { messageSchema } from '../utils/utils';
+import { authHeaders, messageSchema } from '../utils/utils';
 import {
   createSession,
   invalidateAllSessions,
   invalidateSession,
-  itsAdmin,
-  validateSessionToken,
 } from '../utils/auth';
+import { authMacros } from '../utils/auth.macro';
 import { Folder } from '../schemas/folder';
 import { SharedFolder } from '../schemas/sharedFiles';
 
@@ -26,7 +25,7 @@ const userRouter = new Elysia({
   detail: {
     tags: ['Users'],
   },
-});
+}).use(authMacros);
 
 const allFoldersSchema = t.Array(
   t.Object({ id: t.Nullable(t.Integer()), name: t.Nullable(t.String()) })
@@ -34,31 +33,23 @@ const allFoldersSchema = t.Array(
 
 userRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(User).where(ne(User.rol, 'Contacto'));
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     response: {
       200: t.Array(UserSelSchema),
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 userRouter.get(
   '/profile',
-  async ({ headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, error }) => {
     const data = await db.select().from(User).where(eq(User.id, user.id));
     if (data.length < 1) {
       return error(404, {
@@ -68,9 +59,8 @@ userRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     response: {
       200: UserSelSchema,
       404: messageSchema,
@@ -82,11 +72,7 @@ userRouter.get(
 
 userRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -101,9 +87,8 @@ userRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: UserSelSchema,
@@ -145,11 +130,7 @@ userRouter.post(
 
 userRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, body, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -173,9 +154,8 @@ userRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     body: UserUpSchema,
     response: {
@@ -188,11 +168,7 @@ userRouter.put(
 
 userRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -214,9 +190,8 @@ userRouter.delete(
     return { message: 'User deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
@@ -266,42 +241,38 @@ userRouter.post(
 
 userRouter.post(
   '/logout',
-  async ({ headers: { auth }, error }) => {
+  async ({ headers: { auth } }) => {
     await invalidateSession(auth);
     return {
       message: 'success',
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     response: {
       200: messageSchema,
+      401: messageSchema,
     },
   }
 );
 
 userRouter.post(
   '/unauth/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id } }) => {
     await invalidateAllSessions(id);
     return {
       message: 'success',
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
@@ -325,11 +296,7 @@ userRouter.post(
 
 userRouter.get(
   '/folders/:userId',
-  async ({ headers: { auth }, params: { userId }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { userId }, error }) => {
     const parent = await db
       .select()
       .from(Folder)
@@ -353,9 +320,8 @@ userRouter.get(
     return allFolders;
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ userId: t.Integer() }),
     response: {
       200: allFoldersSchema,

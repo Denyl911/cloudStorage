@@ -11,7 +11,7 @@ import { QuestionSelSchema } from './question';
 
 export const Form = pgTable('forms', {
   id: serial('id').primaryKey(),
-  logoGba: varchar('logo_gba').notNull(),
+  logo: varchar('logo').notNull(),
   logoCliente: varchar('logo_cliente').notNull(),
   nombre: varchar('nombre').notNull(),
   titulo: varchar('titulo').notNull(),
@@ -28,7 +28,7 @@ export const FormSelSchemaWithQuestions = t.Composite([
   t.Object({ preguntas: t.Array(QuestionSelSchema) }),
 ]);
 export const FormInSchema = createInsertSchema(Form, {
-  logoGba: t.File(),
+  logo: t.File(),
   logoCliente: t.File(),
 });
 
@@ -41,13 +41,13 @@ export const FormInSchemaWithQuestions = t.Composite([
   }),
 ]);
 export const FormUpSchema = createUpdateSchema(Form, {
-  logoGba: t.Nullable(t.File()),
+  logo: t.Nullable(t.File()),
   logoCliente: t.Nullable(t.File()),
 });
 
 export const FormSchemaSelAssigned = t.Object({
   id: t.Nullable(t.Number()),
-  logoGba: t.Nullable(t.String()),
+  logo: t.Nullable(t.String()),
   logoCliente: t.Nullable(t.String()),
   nombre: t.Nullable(t.String()),
   titulo: t.Nullable(t.String()),

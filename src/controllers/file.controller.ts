@@ -9,13 +9,13 @@ import {
   FileTypeIn,
   FileUpSchema,
 } from '../schemas/file';
-import { messageSchema } from '../utils/utils';
+import { authHeaders, messageSchema } from '../utils/utils';
 import {
   SharedFile,
   SharedFileInSchema,
   SharedFolder,
 } from '../schemas/sharedFiles';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authMacros } from '../utils/auth.macro';
 import { Folder } from '../schemas/folder';
 
 const fileRouter = new Elysia({
@@ -23,21 +23,16 @@ const fileRouter = new Elysia({
   detail: {
     tags: ['Files'],
   },
-});
+}).use(authMacros);
 
 fileRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(File);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(FileSelSchema),
       401: messageSchema,
@@ -48,11 +43,7 @@ fileRouter.get(
 
 fileRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const owns = await db
       .select({ id: File.id, userId: File.userId })
       .from(File)
@@ -75,9 +66,8 @@ fileRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: FileSelSchema,
@@ -90,11 +80,7 @@ fileRouter.get(
 
 fileRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, body, set, error }) => {
     const owns = await db
       .select({ id: Folder.id, userId: Folder.userId })
       .from(Folder)
@@ -155,9 +141,8 @@ fileRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: FileInSchema,
     response: {
       201: messageSchema,
@@ -170,11 +155,7 @@ fileRouter.post(
 
 fileRouter.put(
   '/:id',
-  async ({ headers: { auth }, body, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, body, params: { id }, error }) => {
     const owns = await db
       .select({ id: File.id, userId: File.userId })
       .from(File)
@@ -201,9 +182,8 @@ fileRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: FileUpSchema,
     params: t.Object({ id: t.Integer() }),
     response: {
@@ -220,11 +200,7 @@ fileRouter.put(
 
 fileRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     const data = await db
       .select({ id: File.id, route: File.route })
       .from(File)
@@ -250,9 +226,8 @@ fileRouter.delete(
     return { message: 'File deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
@@ -265,11 +240,7 @@ fileRouter.delete(
 
 fileRouter.post(
   '/share',
-  async ({ body, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, user, error }) => {
     const owns = await db
       .select({ id: File.id, userId: File.userId })
       .from(File)
@@ -285,9 +256,8 @@ fileRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: SharedFileInSchema,
     response: {
       200: messageSchema,
@@ -302,11 +272,7 @@ fileRouter.post(
 
 fileRouter.post(
   '/unshare',
-  async ({ body, headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, user, error }) => {
     const owns = await db
       .select({ id: File.id, userId: File.userId })
       .from(File)
@@ -327,9 +293,8 @@ fileRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     body: SharedFileInSchema,
     response: {
       200: messageSchema,

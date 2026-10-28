@@ -9,8 +9,8 @@ import {
   EmployeeSelSchema,
   EmployeeUpSchema,
 } from '../schemas/employee';
-import { messageSchema } from '../utils/utils';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { authMacros } from '../utils/auth.macro';
 import { Form, FormSchemaSelAssigned } from '../schemas/form';
 import { Question, QuestionWithAnswer } from '../schemas/question';
 import { Answer } from '../schemas/answer';
@@ -20,21 +20,16 @@ const employeeRouter = new Elysia({
   detail: {
     tags: ['Employees'],
   },
-});
+}).use(authMacros);
 
 employeeRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Employee);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(EmployeeSelSchema),
       401: messageSchema,
@@ -45,15 +40,11 @@ employeeRouter.get(
 
 employeeRouter.get(
   '/assigned-forms/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id } }) => {
     return await db
       .select({
         id: Form.id,
-        logoGba: Form.logoGba,
+        logo: Form.logo,
         logoCliente: Form.logoCliente,
         nombre: Form.nombre,
         titulo: Form.titulo,
@@ -67,9 +58,8 @@ employeeRouter.get(
       .where(eq(EmployeeForm.employeeId, id));
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: t.Array(FormSchemaSelAssigned),
@@ -84,12 +74,7 @@ employeeRouter.get(
 
 employeeRouter.get(
   '/form-answers',
-  async ({ headers: { auth }, query: { employeeId, formId }, error }) => {
-    // Validar user
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ query: { employeeId, formId } }) => {
     return await db
       .select({
         id: Question.id,
@@ -118,9 +103,8 @@ employeeRouter.get(
       .where(eq(Question.formularioId, formId));
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     query: t.Object({ employeeId: t.Number(), formId: t.Number() }),
     response: {
       200: t.Array(QuestionWithAnswer),
@@ -161,11 +145,7 @@ employeeRouter.get(
 
 employeeRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     const data = await db.select().from(Employee).where(eq(Employee.id, id));
     if (data.length < 1) {
       return error(404, {
@@ -175,9 +155,8 @@ employeeRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: EmployeeSelSchema,
@@ -190,11 +169,7 @@ employeeRouter.get(
 
 employeeRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set }) => {
     set.status = 201;
     await db.transaction(async (tx) => {
       const [empleado] = await tx
@@ -213,24 +188,20 @@ employeeRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: EmployeeInWithFormIdSchema,
     response: {
       201: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 employeeRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, body }) => {
     await db
       .update(Employee)
       .set({
@@ -243,9 +214,8 @@ employeeRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     body: EmployeeUpSchema,
     response: {
@@ -258,11 +228,7 @@ employeeRouter.put(
 
 employeeRouter.post(
   '/bulk',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set }) => {
     set.status = 201;
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.length; i++) {
@@ -283,13 +249,13 @@ employeeRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: t.Array(EmployeeInWithFormIdSchema),
     response: {
       201: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Crear varias empleados',
@@ -299,11 +265,7 @@ employeeRouter.post(
 
 employeeRouter.post(
   '/bulk-from-csv',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set }) => {
     set.status = 201;
     const data = await body.csv.text();
     const lines = data.split('\n');
@@ -339,9 +301,8 @@ employeeRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: t.Object({
       csv: t.File({
         examples: [
@@ -352,6 +313,7 @@ employeeRouter.post(
     response: {
       201: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Crear varias empleados desde un archivo CSV',
@@ -361,19 +323,13 @@ employeeRouter.post(
 
 employeeRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
-
+  async ({ params: { id } }) => {
     await db.delete(Employee).where(eq(Employee.id, id));
     return { message: 'Employee deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,

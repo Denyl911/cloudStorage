@@ -11,13 +11,9 @@ import {
   UserTypeIn,
   UserUpSchema,
 } from '../schemas/user';
-import { messageSchema } from '../utils/utils';
-import {
-  createSession,
-  invalidateSession,
-  itsAdmin,
-  validateSessionToken,
-} from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { createSession, invalidateSession } from '../utils/auth';
+import { authMacros } from '../utils/auth.macro';
 import { ClientContact } from '../schemas/clients_contacts';
 import { Folder } from '../schemas/folder';
 
@@ -26,35 +22,27 @@ const contactRouter = new Elysia({
   detail: {
     tags: ['Contactos'],
   },
-});
+}).use(authMacros);
 
 contactRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(User).where(eq(User.rol, 'Contacto'));
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(UserSelSchema),
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 contactRouter.get(
   '/profile',
-  async ({ headers: { auth }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, error }) => {
     const data = await db.select().from(User).where(eq(User.id, user.id));
     if (data.length < 1) {
       return error(404, {
@@ -64,9 +52,8 @@ contactRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     response: {
       200: UserSelSchema,
       404: messageSchema,
@@ -78,11 +65,7 @@ contactRouter.get(
 
 contactRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -97,9 +80,8 @@ contactRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: UserSelSchema,
@@ -145,11 +127,7 @@ contactRouter.post(
 
 contactRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, body, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -173,9 +151,8 @@ contactRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     body: UserUpSchema,
     response: {
@@ -188,11 +165,7 @@ contactRouter.put(
 
 contactRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ user, params: { id }, error }) => {
     if (id !== user.id && user.rol !== 'Admin') {
       return error(403, {
         message: 'No tiene permisos',
@@ -214,9 +187,8 @@ contactRouter.delete(
     return { message: 'User deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,

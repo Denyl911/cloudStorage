@@ -13,8 +13,8 @@ import {
   FormTypeIn,
   FormUpSchema,
 } from '../schemas/form';
-import { messageSchema } from '../utils/utils';
-import { itsAdmin, validateSessionToken } from '../utils/auth';
+import { authHeaders, messageSchema } from '../utils/utils';
+import { authMacros } from '../utils/auth.macro';
 import { Question, QuestionWithAllAnswers } from '../schemas/question';
 import {
   Employee,
@@ -23,26 +23,23 @@ import {
 } from '../schemas/employee';
 import { Answer } from '../schemas/answer';
 
+const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000"
+
 const formRouter = new Elysia({
   prefix: '/forms',
   detail: {
     tags: ['Forms'],
   },
-});
+}).use(authMacros);
 
 formRouter.get(
   '/',
-  async ({ headers: { auth }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async () => {
     return await db.select().from(Form);
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     response: {
       200: t.Array(FormSelSchema),
       401: messageSchema,
@@ -89,7 +86,7 @@ formRouter.get(
       .select()
       .from(Form)
       .where(
-        eq(Form.linkFormulario, `https://api.gbalatam.com/forms/reply/${hash}`)
+        eq(Form.linkFormulario, `${SITE_URL}/forms/reply/${hash}`)
       );
     const preguntas = await db
       .select()
@@ -122,11 +119,7 @@ formRouter.get(
 
 formRouter.get(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id }, error }) => {
     const data = await db.select().from(Form).where(eq(Form.id, id));
     if (data.length < 1) {
       return error(404, {
@@ -136,9 +129,8 @@ formRouter.get(
     return data[0];
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: FormSelSchema,
@@ -151,24 +143,21 @@ formRouter.get(
 
 formRouter.post(
   '/',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set, error }) => {
+    set.status = 201;
     set.status = 201;
     let data: FormTypeIn;
 
-    if (body.logoGba && body.logoCliente) {
-      const image1: File = body.logoGba;
+    if (body.logo && body.logoCliente) {
+      const image1: File = body.logo;
       const route1 = `public/img/${Date.now()}${path.extname(image1.name)}`;
-      await Bun.write(route1, body.logoGba);
+      await Bun.write(route1, body.logo);
       const image2: File = body.logoCliente;
       const route2 = `public/img/${Date.now()}${path.extname(image2.name)}`;
       await Bun.write(route2, body.logoCliente);
       const uid = randomUUIDv7();
-      const linkFormulario = `https://api.gbalatam.com/forms/reply/${uid}`;
-      data = { ...body, logoGba: route1, logoCliente: route2, linkFormulario };
+      const linkFormulario = `${SITE_URL}/forms/reply/${uid}`;
+      data = { ...body, logo: route1, logoCliente: route2, linkFormulario };
       await db.insert(Form).values(data);
       return {
         message: 'success',
@@ -178,40 +167,36 @@ formRouter.post(
     }
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: FormInSchema,
     response: {
       201: messageSchema,
       400: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
   }
 );
 
 formRouter.post(
   '/with-questions',
-  async ({ headers: { auth }, body, set, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, set, error }) => {
     set.status = 201;
     let data: FormTypeIn;
 
-    if (!body.logoGba && !body.logoCliente) {
+    if (!body.logo && !body.logoCliente) {
       return error(400, { message: 'Logos obligatorios' });
     }
-    const image1: File = body.logoGba;
+    const image1: File = body.logo;
     const route1 = `public/img/${Date.now()}${path.extname(image1.name)}`;
-    await Bun.write(route1, body.logoGba);
+    await Bun.write(route1, body.logo);
     const image2: File = body.logoCliente;
     const route2 = `public/img/${Date.now()}${path.extname(image2.name)}`;
     await Bun.write(route2, body.logoCliente);
     const uid = randomUUIDv7();
-    const linkFormulario = `https://api.gbalatam.com/forms/reply/${uid}`;
-    data = { ...body, logoGba: route1, logoCliente: route2, linkFormulario };
+    const linkFormulario = `${SITE_URL}/forms/reply/${uid}`;
+    data = { ...body, logo: route1, logoCliente: route2, linkFormulario };
     await db.transaction(async (tx) => {
       const [form] = await tx
         .insert(Form)
@@ -228,14 +213,14 @@ formRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: FormInSchemaWithQuestions,
     response: {
       201: messageSchema,
       400: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Crear formulario con preguntas',
@@ -245,12 +230,7 @@ formRouter.post(
 
 formRouter.get(
   '/all-answers/:formId',
-  async ({ headers: { auth }, params: { formId }, error }) => {
-    // Validar user
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { formId } }) => {
     // Obtener todas las preguntas del formulario
     const questions = await db
       .select({
@@ -293,9 +273,8 @@ formRouter.get(
     return questionsWithAnswers;
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ formId: t.Integer() }),
     response: {
       200: t.Array(QuestionWithAllAnswers),
@@ -311,11 +290,7 @@ formRouter.get(
 
 formRouter.get(
   '/excel/:formId',
-  async ({ headers: { auth }, params: { formId }, error, set }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ set, params: { formId }, error }) => {
 
     // Obtener todas las preguntas del formulario
     const questions = await db
@@ -429,47 +404,42 @@ formRouter.get(
     return buffer;
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ formId: t.Integer() }),
     response: {
-      200: t.Any(),
       401: messageSchema,
       403: messageSchema,
     },
     detail: {
-      description: 'Obtener las respuestas de un formulario en formato XLSX',
+      description:
+        'Obtener las respuestas de un formulario en formato XLSX. Nota: la respuesta 200 es un archivo binario .xlsx y no se valida contra esquema.',
     },
   }
 );
 
 formRouter.put(
   '/:id',
-  async ({ headers: { auth }, params: { id }, body, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body, params: { id } }) => {
 
     let logoCliente: string | undefined;
-    let logoGba: string | undefined;
+    let logo: string | undefined;
     if (body.logoCliente) {
       const image: File = body.logoCliente;
       logoCliente = `public/img/${Date.now()}${path.extname(image.name)}`;
       await Bun.write(logoCliente, body.logoCliente);
     }
-    if (body.logoGba) {
-      const image: File = body.logoGba;
-      logoGba = `public/img/${Date.now()}${path.extname(image.name)}`;
-      await Bun.write(logoGba, body.logoGba);
+    if (body.logo) {
+      const image: File = body.logo;
+      logo = `public/img/${Date.now()}${path.extname(image.name)}`;
+      await Bun.write(logo, body.logo);
     }
     await db
       .update(Form)
       .set({
         updatedAt: new Date(),
         ...body,
-        logoGba: logoGba,
+        logo: logo,
         logoCliente: logoCliente,
       })
       .where(eq(Form.id, id));
@@ -478,9 +448,8 @@ formRouter.put(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     body: FormUpSchema,
     response: {
@@ -493,19 +462,13 @@ formRouter.put(
 
 formRouter.delete(
   '/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
-
+  async ({ params: { id } }) => {
     await db.delete(Form).where(eq(Form.id, id));
     return { message: 'Form deleted' };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: messageSchema,
@@ -517,11 +480,7 @@ formRouter.delete(
 
 formRouter.post(
   '/assign',
-  async ({ headers: { auth }, body, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body }) => {
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.employeesIds.length; i++) {
         const id = body.employeesIds[i];
@@ -535,9 +494,8 @@ formRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: t.Object({
       formularioId: t.Number(),
       employeesIds: t.Array(t.Number()),
@@ -546,6 +504,7 @@ formRouter.post(
       201: messageSchema,
       400: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Asignar Formulario a Empleados medieantes sus Ids',
@@ -555,11 +514,7 @@ formRouter.post(
 
 formRouter.post(
   '/unassign',
-  async ({ headers: { auth }, body, error }) => {
-    const isadmin = await itsAdmin(auth);
-    if (!isadmin) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ body }) => {
     await db.transaction(async (tx) => {
       for (let i = 0; i < body.employeesIds.length; i++) {
         const id = body.employeesIds[i];
@@ -578,9 +533,8 @@ formRouter.post(
     };
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    admin: true,
+    headers: authHeaders,
     body: t.Object({
       formularioId: t.Number(),
       employeesIds: t.Array(t.Number()),
@@ -589,6 +543,7 @@ formRouter.post(
       201: messageSchema,
       400: messageSchema,
       401: messageSchema,
+      403: messageSchema,
     },
     detail: {
       description: 'Desasignar Formulario a Empleados medieantes sus Ids',
@@ -598,11 +553,7 @@ formRouter.post(
 
 formRouter.get(
   '/assigned-users/:id',
-  async ({ headers: { auth }, params: { id }, error }) => {
-    const user = await validateSessionToken(auth);
-    if (!user) {
-      return error(401, { message: 'No autorizado' });
-    }
+  async ({ params: { id } }) => {
     return await db
       .select({
         id: Employee.id,
@@ -621,9 +572,8 @@ formRouter.get(
       .where(eq(EmployeeForm.formId, id));
   },
   {
-    headers: t.Object({
-      auth: t.String(),
-    }),
+    user: true,
+    headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
       200: t.Array(EmployeesAsignedSchema),
