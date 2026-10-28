@@ -168,15 +168,6 @@ Por diseño del producto (o pendientes en el roadmap):
 - Los borrados de carpetas/archivos combinan BD y disco sin transaccionalidad compensatoria.
 - Sin tests automatizados ni CI/CD todavía.
 
-## 🧭 Roadmap
-
-- [ ] Remover el hash de contraseña de las respuestas de usuario
-- [ ] Cookie `HttpOnly` + CSRF como variante de sesión
-- [ ] Tests de integración (smoke por módulo) con base de datos de prueba
-- [ ] Docker + compose (app + PostgreSQL) para levantar el entorno completo en un comando
-- [ ] CI con typecheck y lint automáticos
-- [ ] Frontend del portal
-
 ---
 
 Hecho con Bun · Elysia · Drizzle ORM · PostgreSQL
