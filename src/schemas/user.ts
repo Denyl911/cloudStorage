@@ -24,6 +24,7 @@ export const User = pgTable('users', {
 export type UserType = InferSelectModel<typeof User>;
 export type UserTypeIn = InferInsertModel<typeof User>;
 export const UserSelSchema = createSelectSchema(User);
+export const UserPublicSchema = t.Omit(UserSelSchema, ['password']);
 const { createInsertSchema } = createSchemaFactory({ typeboxInstance: t });
 export const UserInSchema = createInsertSchema(User, {
   image: t.Optional(t.File()),

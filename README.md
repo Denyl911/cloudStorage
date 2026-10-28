@@ -166,7 +166,6 @@ Por diseño del producto (o pendientes en el roadmap):
 
 - La sesión viaja en un header custom en texto plano sin cookie `HttpOnly` (los tokens públicos de formularios sí viajan por query).
 - Los borrados de carpetas/archivos combinan BD y disco sin transaccionalidad compensatoria.
-- Algunas respuestas de usuario (`/users/profile`, `/users/:id`) usan `select() completo`, por lo que incluyen el hash de contraseña (removible en un siguiente sprint).
 - Sin tests automatizados ni CI/CD todavía.
 
 ## 🧭 Roadmap

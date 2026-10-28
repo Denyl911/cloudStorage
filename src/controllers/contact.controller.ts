@@ -7,6 +7,7 @@ import {
   ContactoInSchema,
   User,
   UserInSchema,
+  UserPublicSchema,
   UserSelSchema,
   UserTypeIn,
   UserUpSchema,
@@ -27,13 +28,26 @@ const contactRouter = new Elysia({
 contactRouter.get(
   '/',
   async () => {
-    return await db.select().from(User).where(eq(User.rol, 'Contacto'));
+    return await db
+      .select({
+        id: User.id,
+        name: User.name,
+        lastName: User.lastName,
+        email: User.email,
+        rol: User.rol,
+        image: User.image,
+        estatus: User.estatus,
+        createdAt: User.createdAt,
+        updatedAt: User.updatedAt,
+      })
+      .from(User)
+      .where(eq(User.rol, 'Contacto'));
   },
   {
     admin: true,
     headers: authHeaders,
     response: {
-      200: t.Array(UserSelSchema),
+      200: t.Array(UserPublicSchema),
       401: messageSchema,
       403: messageSchema,
     },
@@ -43,7 +57,20 @@ contactRouter.get(
 contactRouter.get(
   '/profile',
   async ({ user, error }) => {
-    const data = await db.select().from(User).where(eq(User.id, user.id));
+    const data = await db
+      .select({
+        id: User.id,
+        name: User.name,
+        lastName: User.lastName,
+        email: User.email,
+        rol: User.rol,
+        image: User.image,
+        estatus: User.estatus,
+        createdAt: User.createdAt,
+        updatedAt: User.updatedAt,
+      })
+      .from(User)
+      .where(eq(User.id, user.id));
     if (data.length < 1) {
       return error(404, {
         message: 'Not found',
@@ -55,7 +82,7 @@ contactRouter.get(
     user: true,
     headers: authHeaders,
     response: {
-      200: UserSelSchema,
+      200: UserPublicSchema,
       404: messageSchema,
       401: messageSchema,
       403: messageSchema,
@@ -71,7 +98,20 @@ contactRouter.get(
         message: 'No tiene permisos',
       });
     }
-    const data = await db.select().from(User).where(eq(User.id, id));
+    const data = await db
+      .select({
+        id: User.id,
+        name: User.name,
+        lastName: User.lastName,
+        email: User.email,
+        rol: User.rol,
+        image: User.image,
+        estatus: User.estatus,
+        createdAt: User.createdAt,
+        updatedAt: User.updatedAt,
+      })
+      .from(User)
+      .where(eq(User.id, id));
     if (data.length < 1) {
       return error(404, {
         message: 'Not found',
@@ -84,7 +124,7 @@ contactRouter.get(
     headers: authHeaders,
     params: t.Object({ id: t.Integer() }),
     response: {
-      200: UserSelSchema,
+      200: UserPublicSchema,
       404: messageSchema,
       401: messageSchema,
       403: messageSchema,
