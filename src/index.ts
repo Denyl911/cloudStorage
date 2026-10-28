@@ -4,26 +4,40 @@ import { swagger } from '@elysiajs/swagger';
 import staticPlugin from '@elysiajs/static';
 import { Logestic } from 'logestic';
 import userRouter from './controllers/user.controller';
+import contactRouter from './controllers/contact.controller';
 import folderRouter from './controllers/folder.controller';
 import fileRouter from './controllers/file.controller';
-import assetRouter from './controllers/assets.controller';
-import contactRouter from './controllers/contact.controller';
-import projectRouter from './controllers/projects.controller';
+import assetRouter from './controllers/asset.controller';
+import projectRouter from './controllers/project.controller';
 import clientRouter from './controllers/client.controller';
-import answerRouter from './controllers/answer.controller';
 import employeeRouter from './controllers/employee.controller';
-import formRouter from './controllers/forms.controller';
+import formRouter from './controllers/form.controller';
 import questionRouter from './controllers/question.controller';
+import answerRouter from './controllers/answer.controller';
+import { version } from '../package.json';
+
+const PORT = process.env.PORT ?? 3000;
 
 const app = new Elysia()
   .use(Logestic.preset('fancy'))
   .use(cors())
+  .onError(({ error, set }) => {
+    // Los macros de autenticación (`src/utils/auth.macro.ts`) abortan con
+    // ElysiaCustomStatusResponse al fallar la sesión o el rol: se convierte a
+    // la respuesta HTTP correspondiente (401/403) con el mensaje estándar.
+    if (error?.constructor?.name === 'ElysiaCustomStatusResponse') {
+      const e = error as unknown as { code: number; response: unknown };
+      set.status = e.code;
+      return e.response as never;
+    }
+    // Otros errores caen al manejo por defecto de Elysia.
+  })
   .use(
     swagger({
       documentation: {
         info: {
-          title: 'GBA Latam API Documentation',
-          version: '1.1.0',
+          title: 'Cloud Storage API Documentation',
+          version: version as string,
           description:
             'Se debe enviar el header "auth" en casi todas las peticiones para comprobar la pertenencia de las carpetas y/o archivos',
         },
@@ -32,7 +46,12 @@ const app = new Elysia()
     })
   )
   .use(staticPlugin())
-  .get('/', () => 'Hello Elysia')
+  .get('/', () => ({
+    name: 'cloudStorage API',
+    version: version as string,
+    description: 'API de almacenamiento en la nube corporativo',
+    docs: '/docs',
+  }))
   .use(userRouter)
   .use(contactRouter)
   .use(folderRouter)
@@ -44,7 +63,7 @@ const app = new Elysia()
   .use(formRouter)
   .use(questionRouter)
   .use(answerRouter)
-  .listen(3000);
+  .listen(PORT);
 
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`

@@ -1,9 +1,13 @@
 {
   "name": "cloud-storage",
-  "version": "1.0.50",
+  "version": "1.1.0",
+  "description": "API REST de almacenamiento en la nube corporativo: carpetas jerárquicas, archivos compartidos, clientes, proyectos y formularios con respuestas exportables. Bun + Elysia + Drizzle ORM.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.2.0",
@@ -11,7 +15,7 @@
     "@elysiajs/swagger": "^1.2.0",
     "drizzle-orm": "^0.39.3",
     "drizzle-typebox": "^0.3.0",
-    "elysia": "latest",
+    "elysia": "1.2.14",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
     "logestic": "^1.2.4",
